@@ -1,0 +1,584 @@
+syntax = "proto3";
+
+package alfred.daemon;
+
+option go_package = "github.com/alfred/daemon/pkg/proto";
+
+// DaemonService is the main service exposed by each daemon
+// Alfred has FULL control - no restrictions. The daemon can do anything.
+service DaemonService {
+    // Registration and heartbeat
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+    
+    // ============================================
+    // CORE EXECUTION - Full CLI control
+    // ============================================
+    
+    // Execute any shell command with streaming output
+    rpc ExecuteShell(ShellRequest) returns (stream ShellResponse);
+    
+    // Execute with sudo/elevated privileges
+    rpc ExecuteAsRoot(ShellRequest) returns (stream ShellResponse);
+    
+    // Execute Python code directly
+    rpc ExecutePython(CodeRequest) returns (stream ShellResponse);
+    
+    // Execute Node.js code directly
+    rpc ExecuteNode(CodeRequest) returns (stream ShellResponse);
+    
+    // ============================================
+    // FILE SYSTEM - Full access
+    // ============================================
+    
+    rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+    rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
+    rpc DeleteFile(DeleteRequest) returns (DeleteResponse);
+    rpc MoveFile(MoveRequest) returns (MoveResponse);
+    rpc CopyFile(CopyRequest) returns (CopyResponse);
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+    rpc GetFileInfo(FileInfoRequest) returns (FileInfoResponse);
+    rpc ChmodFile(ChmodRequest) returns (ChmodResponse);
+    rpc ChownFile(ChownRequest) returns (ChownResponse);
+    
+    // ============================================
+    // SYSTEM OPERATIONS
+    // ============================================
+    
+    // Get comprehensive system information
+    rpc GetSystemInfo(SystemInfoRequest) returns (SystemInfoResponse);
+    
+    // Process management
+    rpc ListProcesses(ProcessListRequest) returns (ProcessListResponse);
+    rpc KillProcess(KillProcessRequest) returns (KillProcessResponse);
+    
+    // Service management (systemd, launchd, etc.)
+    rpc ManageService(ServiceRequest) returns (ServiceResponse);
+    
+    // Package management
+    rpc InstallPackage(PackageRequest) returns (stream ShellResponse);
+    rpc RemovePackage(PackageRequest) returns (stream ShellResponse);
+    
+    // Network operations
+    rpc NetworkOperation(NetworkRequest) returns (NetworkResponse);
+    
+    // Environment variables
+    rpc SetEnv(EnvRequest) returns (EnvResponse);
+    rpc GetEnv(EnvRequest) returns (EnvResponse);
+    
+    // ============================================
+    // DOCKER & CONTAINERS
+    // ============================================
+    
+    rpc DockerCommand(DockerRequest) returns (stream ShellResponse);
+    rpc DockerBuild(DockerBuildRequest) returns (stream ShellResponse);
+    rpc DockerCompose(DockerComposeRequest) returns (stream ShellResponse);
+    
+    // ============================================
+    // GIT OPERATIONS
+    // ============================================
+    
+    rpc GitCommand(GitRequest) returns (stream ShellResponse);
+    
+    // ============================================
+    // SELF-MODIFICATION (Soul Daemon)
+    // ============================================
+    
+    // Modify Alfred's own code
+    rpc ModifyCode(ModifyCodeRequest) returns (ModifyCodeResponse);
+    
+    // Create new files in Alfred
+    rpc CreateCode(CreateCodeRequest) returns (CreateCodeResponse);
+    
+    // Rebuild and restart Alfred components
+    rpc RebuildAlfred(RebuildRequest) returns (stream ShellResponse);
+    rpc RestartAlfred(RestartRequest) returns (RestartResponse);
+    
+    // Backup and restore
+    rpc CreateBackup(BackupRequest) returns (BackupResponse);
+    rpc RestoreBackup(RestoreRequest) returns (RestoreResponse);
+    rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+    
+    // Update Alfred dependencies
+    rpc UpdateDependencies(UpdateDepsRequest) returns (stream ShellResponse);
+    
+    // ============================================
+    // SESSION MANAGEMENT (tmux)
+    // ============================================
+    
+    rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+    rpc AttachSession(AttachSessionRequest) returns (stream SessionOutput);
+    rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+    rpc KillSession(KillSessionRequest) returns (KillSessionResponse);
+    rpc SendToSession(SendToSessionRequest) returns (SendToSessionResponse);
+    
+    // ============================================
+    // CRON & SCHEDULED TASKS
+    // ============================================
+    
+    rpc ListCronJobs(CronListRequest) returns (CronListResponse);
+    rpc AddCronJob(CronAddRequest) returns (CronAddResponse);
+    rpc RemoveCronJob(CronRemoveRequest) returns (CronRemoveResponse);
+}
+
+// Registration
+message RegisterRequest {
+    string registration_key = 1;
+    string name = 2;
+    string hostname = 3;
+    repeated string capabilities = 4;
+    bool is_soul_daemon = 5;  // True if this is the daemon on Prime's server
+    string alfred_root = 6;   // Root directory of Alfred installation
+}
+
+message RegisterResponse {
+    string daemon_id = 1;
+    string message = 2;
+    bool success = 3;
+}
+
+// Code execution
+message CodeRequest {
+    string code = 1;
+    string working_directory = 2;
+    map<string, string> environment = 3;
+    int32 timeout_seconds = 4;
+}
+
+// Delete file/directory
+message DeleteRequest {
+    string path = 1;
+    bool recursive = 2;
+}
+
+message DeleteResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Move/rename
+message MoveRequest {
+    string source = 1;
+    string destination = 2;
+}
+
+message MoveResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Copy
+message CopyRequest {
+    string source = 1;
+    string destination = 2;
+    bool recursive = 3;
+}
+
+message CopyResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// File info
+message FileInfoRequest {
+    string path = 1;
+}
+
+message FileInfoResponse {
+    FileInfo info = 1;
+    string error = 2;
+}
+
+// Chmod
+message ChmodRequest {
+    string path = 1;
+    int32 mode = 2;
+    bool recursive = 3;
+}
+
+message ChmodResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Chown
+message ChownRequest {
+    string path = 1;
+    string user = 2;
+    string group = 3;
+    bool recursive = 4;
+}
+
+message ChownResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// System info
+message SystemInfoRequest {}
+
+message SystemInfoResponse {
+    string hostname = 1;
+    string os = 2;
+    string arch = 3;
+    int32 num_cpu = 4;
+    string username = 5;
+    string home_dir = 6;
+    string working_dir = 7;
+    int32 pid = 8;
+    double cpu_percent = 9;
+    double memory_percent = 10;
+    double disk_percent = 11;
+    int64 uptime_seconds = 12;
+    map<string, string> environment = 13;
+}
+
+// Process management
+message ProcessListRequest {
+    string filter = 1;  // Optional filter pattern
+}
+
+message ProcessListResponse {
+    repeated ProcessInfo processes = 1;
+    string error = 2;
+}
+
+message ProcessInfo {
+    int32 pid = 1;
+    string name = 2;
+    string user = 3;
+    double cpu_percent = 4;
+    double memory_percent = 5;
+    string command = 6;
+    string status = 7;
+}
+
+message KillProcessRequest {
+    int32 pid = 1;
+    int32 signal = 2;  // Unix signal (9=SIGKILL, 15=SIGTERM, etc.)
+}
+
+message KillProcessResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Service management
+message ServiceRequest {
+    string service_name = 1;
+    string action = 2;  // start, stop, restart, status, enable, disable
+}
+
+message ServiceResponse {
+    bool success = 1;
+    string status = 2;
+    string output = 3;
+    string error = 4;
+}
+
+// Package management
+message PackageRequest {
+    repeated string packages = 1;
+    string package_manager = 2;  // auto, apt, yum, brew, pacman, pip, npm, etc.
+}
+
+// Network operations
+message NetworkRequest {
+    string operation = 1;  // interfaces, connections, ports, ping, curl, wget, etc.
+    repeated string args = 2;
+}
+
+message NetworkResponse {
+    bool success = 1;
+    string output = 2;
+    string error = 3;
+}
+
+// Environment variables
+message EnvRequest {
+    string key = 1;
+    string value = 2;  // Only used for SetEnv
+}
+
+message EnvResponse {
+    bool success = 1;
+    string value = 2;
+    string error = 3;
+}
+
+// Docker
+message DockerRequest {
+    repeated string args = 1;
+    string working_directory = 2;
+}
+
+message DockerBuildRequest {
+    string dockerfile_path = 1;
+    string tag = 2;
+    string context = 3;
+    map<string, string> build_args = 4;
+}
+
+message DockerComposeRequest {
+    string compose_file = 1;
+    string action = 2;  // up, down, restart, logs, ps, etc.
+    repeated string services = 3;
+}
+
+// Git
+message GitRequest {
+    repeated string args = 1;
+    string working_directory = 2;
+}
+
+// Self-modification
+message ModifyCodeRequest {
+    string component = 1;     // "prime" or "daemon"
+    string file_path = 2;     // Relative path within component
+    string old_content = 3;   // Content to replace
+    string new_content = 4;   // Replacement content
+}
+
+message ModifyCodeResponse {
+    bool success = 1;
+    string backup_path = 2;
+    string error = 3;
+}
+
+message CreateCodeRequest {
+    string component = 1;     // "prime" or "daemon"
+    string file_path = 2;     // Relative path within component
+    string content = 3;       // File content
+}
+
+message CreateCodeResponse {
+    bool success = 1;
+    string full_path = 2;
+    string error = 3;
+}
+
+message RebuildRequest {
+    string component = 1;  // "prime", "daemon", or "all"
+}
+
+message RestartRequest {
+    string component = 1;  // "prime", "daemon", or "all"
+}
+
+message RestartResponse {
+    bool success = 1;
+    string message = 2;
+    string error = 3;
+}
+
+// Backup
+message BackupRequest {
+    string name = 1;
+    repeated string paths = 2;  // Empty = full backup
+}
+
+message BackupResponse {
+    bool success = 1;
+    string backup_path = 2;
+    string error = 3;
+}
+
+message RestoreRequest {
+    string backup_name = 1;
+    string target_path = 2;
+}
+
+message RestoreResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message ListBackupsRequest {}
+
+message ListBackupsResponse {
+    repeated string backups = 1;
+    string error = 2;
+}
+
+message UpdateDepsRequest {
+    string component = 1;  // "prime", "daemon", or "all"
+}
+
+// Session
+message SendToSessionRequest {
+    string session_id = 1;
+    string input = 2;
+}
+
+message SendToSessionResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Cron
+message CronListRequest {}
+
+message CronListResponse {
+    repeated CronJob jobs = 1;
+    string error = 2;
+}
+
+message CronJob {
+    string schedule = 1;
+    string command = 2;
+}
+
+message CronAddRequest {
+    string schedule = 1;
+    string command = 2;
+}
+
+message CronAddResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message CronRemoveRequest {
+    string pattern = 1;  // Pattern to match and remove
+}
+
+message CronRemoveResponse {
+    bool success = 1;
+    int32 removed_count = 2;
+    string error = 3;
+}
+
+// Heartbeat
+message HeartbeatRequest {
+    string daemon_id = 1;
+    SystemStatus status = 2;
+}
+
+message HeartbeatResponse {
+    bool ok = 1;
+    repeated PendingTask pending_tasks = 2;
+}
+
+message SystemStatus {
+    double cpu_percent = 1;
+    double memory_percent = 2;
+    double disk_percent = 3;
+    int64 uptime_seconds = 4;
+}
+
+message PendingTask {
+    string task_id = 1;
+    string action = 2;
+    bytes parameters = 3;  // JSON-encoded parameters
+}
+
+// Shell execution
+message ShellRequest {
+    string command = 1;
+    string working_directory = 2;
+    map<string, string> environment = 3;
+    int32 timeout_seconds = 4;
+    string session_name = 5;  // Optional: run in named tmux session
+}
+
+message ShellResponse {
+    oneof output {
+        string stdout = 1;
+        string stderr = 2;
+    }
+    bool is_complete = 3;
+    int32 exit_code = 4;
+    string error = 5;
+}
+
+// File operations
+message ReadFileRequest {
+    string path = 1;
+    int64 offset = 2;
+    int64 limit = 3;
+}
+
+message ReadFileResponse {
+    bytes content = 1;
+    int64 size = 2;
+    bool is_binary = 3;
+    string error = 4;
+}
+
+message WriteFileRequest {
+    string path = 1;
+    bytes content = 2;
+    bool create_dirs = 3;
+    int32 mode = 4;
+}
+
+message WriteFileResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message ListFilesRequest {
+    string path = 1;
+    bool recursive = 2;
+    string pattern = 3;  // Optional glob pattern
+}
+
+message ListFilesResponse {
+    repeated FileInfo files = 1;
+    string error = 2;
+}
+
+message FileInfo {
+    string name = 1;
+    string path = 2;
+    int64 size = 3;
+    bool is_directory = 4;
+    int64 modified_at = 5;
+    int32 mode = 6;
+}
+
+// Session management (tmux)
+message CreateSessionRequest {
+    string name = 1;
+    string command = 2;  // Optional: command to run in session
+    string working_directory = 3;
+}
+
+message CreateSessionResponse {
+    string session_id = 1;
+    bool success = 2;
+    string error = 3;
+}
+
+message AttachSessionRequest {
+    string session_id = 1;
+    bool follow = 2;  // Stream new output
+}
+
+message SessionOutput {
+    string content = 1;
+    bool is_complete = 2;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+    repeated SessionInfo sessions = 1;
+}
+
+message SessionInfo {
+    string id = 1;
+    string name = 2;
+    string command = 3;
+    int64 created_at = 4;
+    bool is_running = 5;
+}
+
+message KillSessionRequest {
+    string session_id = 1;
+}
+
+message KillSessionResponse {
+    bool success = 1;
+    string error = 2;
+}
