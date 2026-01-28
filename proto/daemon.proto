@@ -4,8 +4,209 @@ package alfred.daemon;
 
 option go_package = "github.com/alfred/daemon/pkg/proto";
 
-// DaemonService is the main service exposed by each daemon
-// Alfred has FULL control - no restrictions. The daemon can do anything.
+// =============================================================================
+// PrimeService - Hosted by Prime, daemons connect TO Prime
+// This enables daemons behind NAT to work without port forwarding
+// =============================================================================
+service PrimeService {
+    // Bidirectional streaming connection
+    // Daemon connects and maintains persistent stream
+    // Prime sends commands, daemon sends results/heartbeats
+    rpc Connect(stream DaemonMessage) returns (stream PrimeCommand);
+}
+
+// Message from Daemon to Prime (sent over the stream)
+message DaemonMessage {
+    string daemon_id = 1;  // Set after registration
+    
+    oneof payload {
+        DaemonRegistration registration = 2;
+        DaemonHeartbeat heartbeat = 3;
+        CommandResult result = 4;
+        DaemonAlert alert = 5;
+    }
+}
+
+// Daemon registration (first message on connect)
+message DaemonRegistration {
+    string registration_key = 1;
+    string name = 2;
+    string hostname = 3;
+    repeated string capabilities = 4;
+    bool is_soul_daemon = 5;
+    string alfred_root = 6;
+}
+
+// Heartbeat from daemon
+message DaemonHeartbeat {
+    double cpu_percent = 1;
+    double memory_percent = 2;
+    double disk_percent = 3;
+    int64 uptime_seconds = 4;
+    int32 active_tasks = 5;
+}
+
+// Result of command execution
+message CommandResult {
+    string command_id = 1;
+    bool success = 2;
+    string output = 3;
+    string error = 4;
+    int32 exit_code = 5;
+    int64 duration_ms = 6;
+    bytes data = 7;  // For binary data (file contents, etc.)
+}
+
+// Alert from daemon (proactive notifications)
+message DaemonAlert {
+    string alert_type = 1;  // disk_full, high_cpu, process_died, etc.
+    string message = 2;
+    string severity = 3;  // info, warning, error, critical
+    map<string, string> metadata = 4;
+}
+
+// Command from Prime to Daemon
+message PrimeCommand {
+    string command_id = 1;
+    
+    oneof command {
+        RegistrationAck registration_ack = 2;
+        ShellCommand shell = 3;
+        FileReadCommand read_file = 4;
+        FileWriteCommand write_file = 5;
+        FileDeleteCommand delete_file = 6;
+        FileListCommand list_files = 7;
+        ProcessListCommand list_processes = 8;
+        ProcessKillCommand kill_process = 9;
+        ServiceCommand manage_service = 10;
+        PackageCommand install_package = 11;
+        DockerCommand docker = 12;
+        GitCommand git = 13;
+        SessionCommand session = 14;
+        CronCommand cron = 15;
+        SystemInfoCommand system_info = 16;
+        SelfModifyCommand self_modify = 17;
+        PingCommand ping = 18;
+    }
+}
+
+// Ack for registration
+message RegistrationAck {
+    bool success = 1;
+    string daemon_id = 2;
+    string message = 3;
+}
+
+// Shell command
+message ShellCommand {
+    string command = 1;
+    string working_directory = 2;
+    map<string, string> environment = 3;
+    int32 timeout_seconds = 4;
+    bool use_sudo = 5;
+}
+
+// File read command
+message FileReadCommand {
+    string path = 1;
+    int64 offset = 2;
+    int64 limit = 3;
+}
+
+// File write command
+message FileWriteCommand {
+    string path = 1;
+    bytes content = 2;
+    bool create_dirs = 3;
+    int32 mode = 4;
+}
+
+// File delete command
+message FileDeleteCommand {
+    string path = 1;
+    bool recursive = 2;
+}
+
+// File list command
+message FileListCommand {
+    string path = 1;
+    bool recursive = 2;
+    string pattern = 3;
+}
+
+// Process list command
+message ProcessListCommand {
+    string filter = 1;
+}
+
+// Process kill command
+message ProcessKillCommand {
+    int32 pid = 1;
+    int32 signal = 2;
+}
+
+// Service management command
+message ServiceCommand {
+    string service_name = 1;
+    string action = 2;  // start, stop, restart, status
+}
+
+// Package command
+message PackageCommand {
+    repeated string packages = 1;
+    string action = 2;  // install, remove, update
+    string package_manager = 3;  // auto, apt, brew, pip, npm, etc.
+}
+
+// Docker command (reusing existing DockerRequest structure)
+message DockerCommand {
+    repeated string args = 1;
+    string working_directory = 2;
+}
+
+// Git command (reusing existing GitRequest structure)
+message GitCommand {
+    repeated string args = 1;
+    string working_directory = 2;
+}
+
+// Session command
+message SessionCommand {
+    string action = 1;  // create, list, kill, send
+    string session_name = 2;
+    string command = 3;
+    string working_directory = 4;
+}
+
+// Cron command
+message CronCommand {
+    string action = 1;  // list, add, remove
+    string schedule = 2;
+    string command = 3;
+    string pattern = 4;  // for remove
+}
+
+// System info command
+message SystemInfoCommand {}
+
+// Self modification command (soul daemon only)
+message SelfModifyCommand {
+    string action = 1;  // modify_code, create_code, rebuild, restart, update_deps
+    string component = 2;  // prime, daemon, all
+    string file_path = 3;
+    string old_content = 4;
+    string new_content = 5;
+    string content = 6;
+}
+
+// Ping command (for keepalive verification)
+message PingCommand {
+    int64 timestamp = 1;
+}
+
+// =============================================================================
+// DaemonService - DEPRECATED: Kept for reference, use PrimeService instead
+// =============================================================================
 service DaemonService {
     // Registration and heartbeat
     rpc Register(RegisterRequest) returns (RegisterResponse);

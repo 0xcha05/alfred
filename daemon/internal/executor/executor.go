@@ -135,8 +135,14 @@ func (e *Executor) ExecuteShell(ctx context.Context, command, workDir string, en
 	return result, nil
 }
 
-// ReadFile reads a file's contents
-func (e *Executor) ReadFile(path string, offset, limit int64) ([]byte, int64, error) {
+// ReadFile reads a file's contents (simple version)
+func (e *Executor) ReadFile(path string) ([]byte, error) {
+	content, _, err := e.ReadFileWithOffsets(path, 0, 0)
+	return content, err
+}
+
+// ReadFileWithOffsets reads a file's contents with offset and limit
+func (e *Executor) ReadFileWithOffsets(path string, offset, limit int64) ([]byte, int64, error) {
 	// Resolve path
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -210,8 +216,13 @@ func (e *Executor) WriteFile(path string, content []byte, createDirs bool, mode 
 	return nil
 }
 
-// ListFiles lists files in a directory
-func (e *Executor) ListFiles(path string, recursive bool, pattern string) ([]FileInfo, error) {
+// ListFiles lists files in a directory (simple version)
+func (e *Executor) ListFiles(path string, recursive bool) ([]FileInfo, error) {
+	return e.ListFilesWithPattern(path, recursive, "")
+}
+
+// ListFilesWithPattern lists files in a directory with pattern matching
+func (e *Executor) ListFilesWithPattern(path string, recursive bool, pattern string) ([]FileInfo, error) {
 	// Resolve path
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -246,7 +257,9 @@ func (e *Executor) ListFiles(path string, recursive bool, pattern string) ([]Fil
 			Path:        p,
 			Size:        info.Size(),
 			IsDirectory: info.IsDir(),
+			IsDir:       info.IsDir(),
 			ModifiedAt:  info.ModTime(),
+			ModTime:     info.ModTime(),
 			Mode:        info.Mode(),
 		})
 
@@ -271,6 +284,8 @@ type FileInfo struct {
 	Path        string
 	Size        int64
 	IsDirectory bool
+	IsDir       bool // Alias for IsDirectory
 	ModifiedAt  time.Time
+	ModTime     time.Time // Alias for ModifiedAt
 	Mode        os.FileMode
 }

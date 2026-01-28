@@ -14,9 +14,8 @@ type Config struct {
 	Capabilities []string
 
 	// Networking
-	GRPCPort        int
-	PrimeURL        string
-	ExternalAddress string // Address Prime should use to connect back (if different from hostname:port)
+	PrimeAddress string // TCP address to connect to Prime (e.g., "prime.example.com:50051")
+	PrimeURL     string // HTTP URL for Prime (legacy, for health checks)
 
 	// Security
 	RegistrationKey string
@@ -45,9 +44,8 @@ func Load(configPath string) (*Config, error) {
 		Name:            getEnv("DAEMON_NAME", hostname),
 		Hostname:        hostname,
 		Capabilities:    getEnvSlice("DAEMON_CAPABILITIES", defaultCaps),
-		GRPCPort:        getEnvInt("DAEMON_GRPC_PORT", 50052),
+		PrimeAddress:    getEnv("PRIME_ADDRESS", "localhost:50051"),
 		PrimeURL:        getEnv("PRIME_URL", "http://localhost:8000"),
-		ExternalAddress: getEnv("DAEMON_EXTERNAL_ADDRESS", ""),
 		RegistrationKey: getEnv("DAEMON_REGISTRATION_KEY", ""),
 		TLSCertPath:     getEnv("DAEMON_TLS_CERT", ""),
 		TLSKeyPath:      getEnv("DAEMON_TLS_KEY", ""),

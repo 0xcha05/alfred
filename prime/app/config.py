@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     
     # Daemon Communication
     daemon_registration_key: str = ""
-    grpc_port: int = 50051
+    daemon_port: int = 50051  # Port for daemon bidirectional connections
+    grpc_port: int = 50051  # Alias for daemon_port (legacy)
     
     # TLS
     tls_cert_path: str = "certs/server.crt"

@@ -17,28 +17,37 @@ A persistent AI agent that lives across all your machines, accessible through an
 
 ## Architecture
 
+Daemons connect TO Prime using bidirectional TCP streams. This means daemons behind NAT (home networks, VPNs) work without port forwarding.
+
 ```
                     ┌─────────────────────────────────────┐
-                    │           ALFRED PRIME              │
+                    │           ALFRED PRIME (EC2)        │
+                    │                                     │
+                    │  HTTP :8000  - Telegram webhooks    │
+                    │  TCP  :50051 - Daemon connections   │
                     │                                     │
                     │  • Understands intent (Claude API)  │
                     │  • Routes to machines               │
                     │  • Manages parallel execution       │
                     │  • Holds memory & patterns          │
                     └─────────────────────────────────────┘
-                                     │
+                                     ▲
             ┌────────────────────────┼────────────────────────┐
             │                        │                        │
-            ▼                        ▼                        ▼
+            │      Daemons CONNECT   │   to Prime             │
+            │      (outbound TCP)    │                        │
+            │                        │                        │
     ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
     │   DAEMON     │        │   DAEMON     │        │   DAEMON     │
-    │   MacBook    │        │    EC2       │        │  ThinkPad    │
+    │   MacBook    │        │    Soul      │        │  ThinkPad    │
+    │  (home NAT)  │        │  (on Prime)  │        │  (office)    │
     │              │        │              │        │              │
-    │  shell       │        │  shell       │        │  shell       │
-    │  files       │        │  files       │        │  files       │
-    │  browser     │        │  services    │        │  browser     │
+    │  Connects ───┼────────┼──► Prime     │        │  Connects ───┤
+    │  to Prime    │        │              │        │  to Prime    │
     └──────────────┘        └──────────────┘        └──────────────┘
 ```
+
+**Key insight**: Daemons initiate the connection. Prime sends commands back on the same connection. No inbound ports needed on daemon machines.
 
 ## Quick Start
 
@@ -89,10 +98,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### 5. Start Daemon
 
+On any machine you want Alfred to control:
+
 ```bash
 cd daemon
+DAEMON_NAME=macbook \
+PRIME_ADDRESS=your-ec2-ip:50051 \
 DAEMON_REGISTRATION_KEY=your_secret \
-PRIME_URL=http://localhost:8000 \
+go run cmd/daemon/main.go
+```
+
+For local development (daemon on same machine as Prime):
+```bash
+DAEMON_NAME=local \
+PRIME_ADDRESS=localhost:50051 \
+DAEMON_REGISTRATION_KEY=your_secret \
 go run cmd/daemon/main.go
 ```
 
@@ -179,9 +199,10 @@ alfred/
 │   ├── app/
 │   │   ├── main.py             # FastAPI entrypoint
 │   │   ├── config.py           # Configuration
+│   │   ├── grpc_server.py      # Daemon connection server
 │   │   ├── api/                # REST endpoints
 │   │   │   ├── telegram.py     # Telegram webhook
-│   │   │   └── daemon.py       # Daemon registration
+│   │   │   └── daemon.py       # Daemon status API
 │   │   ├── core/               # Business logic
 │   │   │   ├── intent.py       # Intent parsing
 │   │   │   ├── router.py       # Task routing
@@ -191,18 +212,16 @@ alfred/
 │   │   │   ├── audit.py        # Audit logging
 │   │   │   └── memory.py       # Persistent context
 │   │   ├── models/             # Database models
-│   │   ├── services/           # External services
-│   │   └── grpc_client.py      # Daemon communication
+│   │   └── services/           # External services
 │   └── requirements.txt
 ├── daemon/                     # Daemon (Go)
 │   ├── cmd/daemon/             # Entry point
 │   ├── internal/
 │   │   ├── config/             # Configuration
-│   │   ├── executor/           # Shell execution
+│   │   ├── executor/           # Shell/file execution
+│   │   ├── primeclient/        # Bidirectional connection to Prime
 │   │   ├── session/            # tmux sessions
-│   │   ├── browser/            # Browser automation
-│   │   ├── server/             # gRPC server
-│   │   └── client/             # Prime client
+│   │   └── browser/            # Browser automation
 │   └── pkg/proto/              # Protocol definitions
 ├── proto/                      # Protobuf definitions
 │   └── daemon.proto
@@ -274,14 +293,19 @@ The **Soul Daemon** is a special daemon that runs on the same server as Prime. I
 
 ### Running the Soul Daemon
 
-On the Prime server, run a daemon with the soul flag:
+On the **same machine as Prime**, run a daemon with the soul flag:
 
 ```bash
+cd daemon
 DAEMON_IS_SOUL=true \
 ALFRED_ROOT=/path/to/alfred \
 DAEMON_NAME=soul \
+PRIME_ADDRESS=localhost:50051 \
+DAEMON_REGISTRATION_KEY=your_secret \
 go run cmd/daemon/main.go
 ```
+
+The soul daemon connects to Prime locally and can modify Alfred's own code.
 
 ### Self-Improvement Commands
 
@@ -337,7 +361,37 @@ cd daemon && go test ./...
 python scripts/test_setup.py
 ```
 
+## How Connections Work
+
+### NAT-Friendly Design
+
+Most machines (laptops, home servers) are behind NAT. Alfred uses a "daemon connects to Prime" model:
+
+1. **Prime runs on a public server** (EC2, DigitalOcean, etc.) with ports 8000 (HTTP) and 50051 (TCP) open
+2. **Daemons connect outbound** to Prime - this always works, even behind strict NAT
+3. **Prime sends commands** back on the same connection using bidirectional streaming
+4. **No port forwarding** needed on daemon machines
+
+```
+MacBook (behind NAT)              EC2 (public IP)
+┌─────────────────┐              ┌─────────────────┐
+│     Daemon      │──────────────│      Prime      │
+│                 │  outbound    │                 │
+│  No open ports  │  TCP :50051  │  Listens on     │
+│  needed!        │◄─────────────│  :8000, :50051  │
+└─────────────────┘  bidirectional└─────────────────┘
+```
+
+### Connection Protocol
+
+- **TCP with JSON messages** (length-prefixed)
+- **Bidirectional streaming** - both sides can send messages anytime
+- **Auto-reconnect** with exponential backoff
+- **Heartbeats** every 30 seconds
+
 ## Configuration Reference
+
+### Prime Configuration
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -347,8 +401,19 @@ python scripts/test_setup.py
 | `CLAUDE_API_KEY` | Anthropic API key | Yes |
 | `CLAUDE_MODEL` | Model to use (default: claude-sonnet-4-20250514) | No |
 | `DAEMON_REGISTRATION_KEY` | Shared secret for daemons | Yes |
+| `DAEMON_PORT` | Port for daemon connections (default: 50051) | No |
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `REDIS_URL` | Redis connection string | Yes |
+
+### Daemon Configuration
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DAEMON_NAME` | Friendly name (e.g., "macbook", "server") | Recommended |
+| `PRIME_ADDRESS` | Prime's TCP address (e.g., "ec2-ip:50051") | Yes |
+| `DAEMON_REGISTRATION_KEY` | Same key as Prime | Yes |
+| `DAEMON_IS_SOUL` | Set to "true" for soul daemon | No |
+| `ALFRED_ROOT` | Path to Alfred source (soul daemon only) | No |
 
 ## Roadmap
 

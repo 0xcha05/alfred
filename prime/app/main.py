@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     logger.info("🎩 Alfred Prime starting...")
     logger.info(f"   Environment: {settings.environment}")
     logger.info(f"   HTTP port: {settings.port}")
+    logger.info(f"   Daemon port: {settings.daemon_port}")
     logger.info(f"   Telegram webhook path: /api/telegram/webhook")
     
     # Log security status
@@ -38,15 +39,29 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("   Daemon registration: NO KEY SET")
     
+    # Start daemon server (for bidirectional connections)
+    from app.grpc_server import start_daemon_server, daemon_registry
+    daemon_server = await start_daemon_server(
+        host="0.0.0.0",
+        port=settings.daemon_port,
+    )
+    
+    # Store server reference for shutdown
+    app.state.daemon_server = daemon_server
+    app.state.daemon_registry = daemon_registry
+    
+    logger.info("🎩 Alfred Prime is ready!")
+    
     yield
     
     # Shutdown
     logger.info("🎩 Alfred Prime shutting down...")
     
-    # Disconnect from all daemons
-    from app.grpc_client import daemon_client
-    for daemon_id in list(daemon_client.connections.keys()):
-        await daemon_client.disconnect(daemon_id)
+    # Stop daemon server
+    if hasattr(app.state, 'daemon_server'):
+        app.state.daemon_server.close()
+        await app.state.daemon_server.wait_closed()
+        logger.info("   Daemon server stopped")
     
     # Close telegram client
     from app.services.telegram_service import telegram_service
