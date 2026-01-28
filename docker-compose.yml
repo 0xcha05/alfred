@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  # PostgreSQL database for memory store
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: alfred
+      POSTGRES_PASSWORD: alfred
+      POSTGRES_DB: alfred
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alfred"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and pub/sub
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Alfred Prime - the brain
+  alfred-prime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prime
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DATABASE_URL=postgresql+asyncpg://alfred:alfred@postgres:5432/alfred
+      - REDIS_URL=redis://redis:6379/0
+      - DAEMON_SECRET_KEY=${DAEMON_SECRET_KEY:-dev-secret-key}
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Alfred Daemon - example local daemon
+  alfred-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: daemon
+    environment:
+      - DAEMON_NAME=local-daemon
+      - DAEMON_MACHINE_TYPE=docker
+      - DAEMON_CAPABILITIES=["shell", "files"]
+      - DAEMON_PRIME_URL=http://alfred-prime:8000
+      - DAEMON_SECRET_KEY=${DAEMON_SECRET_KEY:-dev-secret-key}
+      - DAEMON_PORT=8001
+    depends_on:
+      - alfred-prime
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
