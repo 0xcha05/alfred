@@ -267,9 +267,26 @@ func (c *Client) handleMessage(msg map[string]interface{}) {
 	msgType, _ := msg["type"].(string)
 	commandID, _ := msg["command_id"].(string)
 
+	// Log incoming command from Prime
+	log.Printf("📥 Command from Prime: type=%s, id=%s", msgType, commandID)
+	if msgType == "shell" {
+		if cmd, ok := msg["command"].(string); ok {
+			log.Printf("   Shell: %s", cmd)
+		}
+	}
+
 	// Use the handler registry - all command types are handled there
 	// This makes the daemon extensible without modifying this code
 	result := handlers.Handle(msgType, msg)
+
+	// Log result
+	success, _ := result["success"].(bool)
+	if success {
+		log.Printf("✅ Command %s completed successfully", commandID)
+	} else {
+		errMsg, _ := result["error"].(string)
+		log.Printf("❌ Command %s failed: %s", commandID, errMsg)
+	}
 
 	// Add command_id and daemon_id to result
 	result["command_id"] = commandID
