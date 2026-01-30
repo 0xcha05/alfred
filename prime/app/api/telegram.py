@@ -3,19 +3,20 @@
 import logging
 from fastapi import APIRouter, Request, HTTPException, Header, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, List
 import uuid
 
 from app.config import settings
 from app.services.telegram_service import telegram_service
-from app.core.intent import parse_intent, format_response, ActionType
-from app.core.router import router as task_router
-from app.core.orchestrator import orchestrator
+from app.core.brain import think
 from app.grpc_server import daemon_registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Simple conversation memory per chat
+conversation_memory: Dict[int, List[dict]] = {}
 
 
 class TelegramUpdate(BaseModel):
@@ -114,120 +115,40 @@ async def telegram_webhook(
 
 
 async def process_message(chat_id: int, user_id: int, text: str, message_id: int):
-    """Process incoming message through intent parsing and execution."""
+    """Process incoming message through Alfred's brain."""
     try:
         # Send typing indicator
         await telegram_service.send_typing_action(chat_id)
         
-        # Parse intent
-        intent = await parse_intent(text)
-        logger.info(f"Parsed intent: {intent.action} with confidence {intent.confidence}")
+        # Get conversation history for this chat (last 10 messages for context)
+        history = conversation_memory.get(chat_id, [])[-10:]
         
-        # Handle low confidence
-        if intent.confidence < 0.7:
-            await telegram_service.send_message(
-                chat_id=chat_id,
-                text=f"I'm not sure what you mean. Could you clarify?\n\nI understood: `{intent.action}`",
-                reply_to_message_id=message_id,
-            )
-            return
-        
-        # Handle help
-        if intent.action == ActionType.HELP:
-            response = await format_response(intent, None)
-            await telegram_service.send_message(
-                chat_id=chat_id,
-                text=response,
-                reply_to_message_id=message_id,
-            )
-            return
-        
-        # Handle status
-        if intent.action == ActionType.STATUS:
-            summary = orchestrator.get_task_summary()
-            if summary["running_count"] == 0:
-                response = "No tasks currently running."
-            else:
-                tasks = "\n".join([
-                    f"• {t['action']} on {t['daemon']} ({t['running_for']})"
-                    for t in summary["tasks"]
-                ])
-                response = f"**Running tasks ({summary['running_count']}):**\n{tasks}"
-            
-            await telegram_service.send_message(
-                chat_id=chat_id,
-                text=response,
-                reply_to_message_id=message_id,
-            )
-            return
-        
-        # Check if confirmation is required
-        if intent.confirmation_required:
-            # Store pending confirmation
-            confirm_id = str(uuid.uuid4())[:8]
-            pending_confirmations[confirm_id] = {
-                "intent": intent,
-                "chat_id": chat_id,
-                "user_id": user_id,
-            }
-            
-            # Send confirmation request
-            await telegram_service.send_confirmation(
-                chat_id=chat_id,
-                message=f"⚠️ **Confirm action:**\n\n`{intent.action}`: {intent.parameters.get('command', intent.parameters)}",
-                callback_data_yes=f"confirm:{confirm_id}",
-                callback_data_no=f"cancel:{confirm_id}",
-            )
-            return
-        
-        # Execute the intent
-        await execute_intent(intent, chat_id, message_id)
-        
-    except Exception as e:
-        logger.error(f"Error processing message: {e}")
-        await telegram_service.send_message(
+        # Think with Claude
+        logger.info(f"Thinking about: {text[:100]}...")
+        result = await think(
+            message=text,
             chat_id=chat_id,
-            text=f"Sorry, something went wrong: {e}",
-            reply_to_message_id=message_id,
-        )
-
-
-async def execute_intent(intent, chat_id: int, message_id: int):
-    """Execute a parsed intent."""
-    try:
-        # Find target daemon
-        target_daemon = task_router.get_target_daemon(intent)
-        
-        if not target_daemon:
-            await telegram_service.send_message(
-                chat_id=chat_id,
-                text="No daemons available to execute this task. Please check that a daemon is connected.",
-                reply_to_message_id=message_id,
-            )
-            return
-        
-        # Check if we're connected to the daemon
-        if not daemon_registry.is_connected(target_daemon):
-            await telegram_service.send_message(
-                chat_id=chat_id,
-                text=f"Daemon `{target_daemon}` is not connected. Waiting for connection...",
-                reply_to_message_id=message_id,
-            )
-            return
-        
-        # Create and execute task
-        task = orchestrator.create_task(
-            daemon_id=target_daemon,
-            action=intent.action.value,
-            parameters=intent.parameters,
+            conversation_history=history,
         )
         
-        # Execute
-        task.parameters["_daemon_id"] = target_daemon
-        task = await orchestrator.execute_task(task)
+        # Store in conversation memory
+        if chat_id not in conversation_memory:
+            conversation_memory[chat_id] = []
+        conversation_memory[chat_id].append({"role": "user", "content": text})
+        conversation_memory[chat_id].append({"role": "assistant", "content": result["response"]})
         
-        # Format and send response
-        response = await format_response(intent, task.result if task.result else {"error": task.error})
+        # Keep only last 20 messages per chat
+        if len(conversation_memory[chat_id]) > 20:
+            conversation_memory[chat_id] = conversation_memory[chat_id][-20:]
+        
+        # Log what happened
+        if result["executed"]:
+            logger.info(f"Executed {len(result['results'])} command(s)")
+        
+        # Send response
+        response = result["response"]
+        if not response:
+            response = "Done." if result["executed"] else "I'm not sure how to help with that."
         
         await telegram_service.send_message(
             chat_id=chat_id,
@@ -236,10 +157,10 @@ async def execute_intent(intent, chat_id: int, message_id: int):
         )
         
     except Exception as e:
-        logger.error(f"Error executing intent: {e}")
+        logger.error(f"Error processing message: {e}", exc_info=True)
         await telegram_service.send_message(
             chat_id=chat_id,
-            text=f"Execution failed: {e}",
+            text=f"Something went wrong: {e}",
             reply_to_message_id=message_id,
         )
 
@@ -267,11 +188,16 @@ async def process_callback(callback_id: str, chat_id: int, message_id: int, data
             await telegram_service.edit_message(
                 chat_id=chat_id,
                 message_id=message_id,
-                text=f"✓ **Confirmed.** Executing...",
+                text="✓ **Confirmed.** Executing...",
             )
             
-            # Execute the intent
-            await execute_intent(pending["intent"], chat_id, message_id)
+            # Re-process the original message
+            await process_message(
+                chat_id=chat_id,
+                user_id=pending["user_id"],
+                text=pending["text"],
+                message_id=message_id,
+            )
             
         elif data.startswith("cancel:"):
             confirm_id = data.split(":")[1]

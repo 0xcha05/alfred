@@ -60,6 +60,8 @@ class ActionType(str, Enum):
     # Meta
     STATUS = "status"
     HELP = "help"
+    INFO = "info"  # Questions about Alfred itself
+    MACHINES = "machines"  # List connected machines
     UNKNOWN = "unknown"
 
 
@@ -130,11 +132,13 @@ Parse user messages into structured intents. Output ONLY valid JSON.
 | list_sessions | List sessions | (none) |
 | cron | Manage cron | operation (list/add/remove), schedule, command |
 
-### Meta
+### Meta (no daemon needed)
 | Action | Description | Parameters |
 |--------|-------------|------------|
 | status | Check running tasks | (none) |
 | help | Show help | (none) |
+| info | Questions about Alfred himself | (none) |
+| machines | List connected machines | (none) |
 
 ## Output Format
 
@@ -170,10 +174,13 @@ User: "update your dependencies" → {"action": "update_deps", "parameters": {"c
 
 # Quick pattern matching for common commands (fallback if API unavailable)
 QUICK_PATTERNS = [
-    # Meta
+    # Meta - questions about Alfred itself (no daemon needed)
     (r"^(help|hi|hello|hey)\b", ActionType.HELP, {}),
     (r"^status\b", ActionType.STATUS, {}),
     (r"^(what'?s running|running tasks)\b", ActionType.STATUS, {}),
+    (r"^(machines?|daemons?|list machines?|connected)\b", ActionType.MACHINES, {}),
+    (r"^(who are you|what are you|about)\b", ActionType.INFO, {}),
+    (r"^(which machine|where are you|what machine)\b", ActionType.INFO, {}),
     
     # Shell
     (r"^ls\s*(.*)", ActionType.SHELL, lambda m: {"command": f"ls {m.group(1)}".strip()}),
@@ -275,6 +282,8 @@ async def parse_intent(message: str) -> ParsedIntent:
                 # Meta
                 "status": ActionType.STATUS,
                 "help": ActionType.HELP,
+                "info": ActionType.INFO,
+                "machines": ActionType.MACHINES,
             }
             
             return ParsedIntent(
