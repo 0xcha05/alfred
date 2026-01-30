@@ -24,7 +24,7 @@ client = AsyncAnthropic(api_key=settings.claude_api_key)
 PRIME_HOSTNAME = os.uname().nodename
 
 
-def get_system_context() -> str:
+def get_system_context(history_file: Optional[str] = None, total_messages: int = 0) -> str:
     """Build the system prompt with current state."""
     
     # Get connected machines
@@ -71,13 +71,21 @@ IMPORTANT:
 - DON'T expose your internal reasoning - if you retry a command or try alternatives, just show the final result. The user doesn't see your tool calls, so phrases like "even better" or "let me try another approach" are confusing.
 - Respond as if the successful result is the only thing that happened.
 
-When executing commands, prefer "prime" (this server) unless user specifies a different machine."""
+When executing commands, prefer "prime" (this server) unless user specifies a different machine.
+
+CHAT HISTORY:
+- You have the last 30 messages in your context window
+- Total messages in this conversation: {total_messages}
+- Full history file: {history_file if history_file else "Not yet created"}
+- If you need to reference older messages, you can read the history file using the read_file tool"""
 
 
 async def think(
     message: str,
     chat_id: int,
     conversation_history: Optional[list] = None,
+    history_file: Optional[str] = None,
+    total_messages: int = 0,
 ) -> dict:
     """
     Process a message through Claude and decide what to do.
@@ -188,11 +196,14 @@ async def think(
     messages.append({"role": "user", "content": message})
     
     try:
+        # Build system context with history info
+        system_context = get_system_context(history_file, total_messages)
+        
         # Call Claude
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
-            system=get_system_context(),
+            system=system_context,
             tools=tools,
             messages=messages,
         )
@@ -260,7 +271,7 @@ async def think(
             response = await client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2048,
-                system=get_system_context(),
+                system=system_context,
                 tools=tools,
                 messages=messages,
             )

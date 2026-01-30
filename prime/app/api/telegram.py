@@ -8,15 +8,13 @@ import uuid
 
 from app.config import settings
 from app.services.telegram_service import telegram_service
+from app.services.chat_history import chat_history
 from app.core.brain import think
 from app.grpc_server import daemon_registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Simple conversation memory per chat
-conversation_memory: Dict[int, List[dict]] = {}
 
 
 class TelegramUpdate(BaseModel):
@@ -120,8 +118,11 @@ async def process_message(chat_id: int, user_id: int, text: str, message_id: int
         # Send typing indicator
         await telegram_service.send_typing_action(chat_id)
         
-        # Get conversation history for this chat (last 10 messages for context)
-        history = conversation_memory.get(chat_id, [])[-10:]
+        # Get conversation history (last 30 messages from sliding window)
+        history = chat_history.get_recent(chat_id, count=30)
+        
+        # Get history metadata for Claude
+        history_summary = chat_history.get_history_summary(chat_id)
         
         # Think with Claude
         logger.info(f"Thinking about: {text[:100]}...")
@@ -129,17 +130,16 @@ async def process_message(chat_id: int, user_id: int, text: str, message_id: int
             message=text,
             chat_id=chat_id,
             conversation_history=history,
+            history_file=history_summary.get("file_path"),
+            total_messages=history_summary.get("message_count", 0),
         )
         
-        # Store in conversation memory
-        if chat_id not in conversation_memory:
-            conversation_memory[chat_id] = []
-        conversation_memory[chat_id].append({"role": "user", "content": text})
-        conversation_memory[chat_id].append({"role": "assistant", "content": result["response"]})
-        
-        # Keep only last 20 messages per chat
-        if len(conversation_memory[chat_id]) > 20:
-            conversation_memory[chat_id] = conversation_memory[chat_id][-20:]
+        # Store messages in history (both user and assistant)
+        chat_history.add_message(chat_id, "user", text, {"user_id": user_id})
+        chat_history.add_message(chat_id, "assistant", result["response"], {
+            "executed": result["executed"],
+            "commands": len(result.get("results", [])),
+        })
         
         # Log what happened
         if result["executed"]:
