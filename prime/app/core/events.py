@@ -82,17 +82,18 @@ class EventBus:
     def subscribe(
         self, 
         handler: EventHandler,
-        source: Optional[EventSource] = None,
-        event_type: Optional[EventType] = None,
+        source: Optional[str] = None,
+        event_type: Optional[str] = None,
     ):
         """Subscribe a handler to events.
         
         If source/type not specified, handler receives all events.
+        source and event_type are plain strings (not enums).
         """
         if source is None and event_type is None:
             self._global_handlers.append(handler)
         else:
-            key = f"{source.value if source else '*'}:{event_type.value if event_type else '*'}"
+            key = f"{source if source else '*'}:{event_type if event_type else '*'}"
             if key not in self._handlers:
                 self._handlers[key] = []
             self._handlers[key].append(handler)
@@ -148,11 +149,11 @@ class EventBus:
         # Add global handlers
         handlers_to_call.extend(self._global_handlers)
         
-        # Add specific handlers
+        # Add specific handlers (source and type are now strings)
         keys_to_check = [
-            f"{event.source.value}:{event.type.value}",  # Exact match
-            f"{event.source.value}:*",  # Source match, any type
-            f"*:{event.type.value}",  # Any source, type match
+            f"{event.source}:{event.type}",  # Exact match
+            f"{event.source}:*",  # Source match, any type
+            f"*:{event.type}",  # Any source, type match
         ]
         
         for key in keys_to_check:
