@@ -1,6 +1,7 @@
 """Alfred Prime - Configuration."""
 
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +32,21 @@ class Settings(BaseSettings):
     telegram_token: str = ""
     telegram_webhook_secret: str = ""
     telegram_allowed_user_ids: List[int] = []
+    
+    @field_validator('telegram_allowed_user_ids', mode='before')
+    @classmethod
+    def parse_user_ids(cls, v):
+        """Parse comma-separated user IDs or single ID."""
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, str):
+            # Handle comma-separated values like "123,456,789"
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return []
     
     # Claude API
     claude_api_key: str = ""
