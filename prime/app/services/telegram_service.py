@@ -21,16 +21,18 @@ class TelegramService:
         self,
         chat_id: int,
         text: str,
-        parse_mode: str = "Markdown",
+        parse_mode: Optional[str] = None,
         reply_to_message_id: Optional[int] = None,
         reply_markup: Optional[dict] = None,
     ) -> dict:
-        """Send a text message to a chat."""
+        """Send a text message to a chat. Tries plain text first (most reliable)."""
         payload = {
             "chat_id": chat_id,
             "text": text,
-            "parse_mode": parse_mode,
         }
+        
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         
         if reply_to_message_id:
             payload["reply_to_message_id"] = reply_to_message_id
@@ -45,6 +47,19 @@ class TelegramService:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as e:
+            # If markdown parsing failed, try again without parse_mode
+            if e.response.status_code == 400 and parse_mode:
+                logger.warning(f"Markdown parsing failed, retrying as plain text")
+                payload.pop("parse_mode", None)
+                response = await self.client.post(
+                    f"{self.base_url}/sendMessage",
+                    json=payload,
+                )
+                response.raise_for_status()
+                return response.json()
+            logger.error(f"Failed to send message: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             raise
@@ -129,7 +144,7 @@ class TelegramService:
         chat_id: int,
         message_id: int,
         text: str,
-        parse_mode: str = "Markdown",
+        parse_mode: Optional[str] = None,
         reply_markup: Optional[dict] = None,
     ) -> dict:
         """Edit an existing message."""
@@ -137,8 +152,10 @@ class TelegramService:
             "chat_id": chat_id,
             "message_id": message_id,
             "text": text,
-            "parse_mode": parse_mode,
         }
+        
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         
         if reply_markup:
             payload["reply_markup"] = reply_markup
