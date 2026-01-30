@@ -578,14 +578,23 @@ def resolve_daemon(daemon_id_or_name: str) -> str:
     - daemon_id (e.g., "daemon-0001") - returned as-is
     - daemon name (e.g., "macbook") - looked up and daemon_id returned
     """
+    logger.debug(f"resolve_daemon called with: {daemon_id_or_name}")
+    
     # If it looks like a daemon_id, use it directly
     if daemon_id_or_name.startswith("daemon-"):
         return daemon_id_or_name
     
     # Otherwise, look up by name
     conn = daemon_registry.get_by_name(daemon_id_or_name)
+    logger.debug(f"get_by_name result: {conn}")
+    
     if conn:
+        logger.debug(f"Resolved {daemon_id_or_name} -> {conn.daemon_id}")
         return conn.daemon_id
+    
+    # List all connected daemons for debugging
+    all_daemons = daemon_registry.list_all()
+    logger.warning(f"Daemon '{daemon_id_or_name}' not found. Connected daemons: {[(d.daemon_id, d.name) for d in all_daemons]}")
     
     # Not found
     raise Exception(f"Daemon {daemon_id_or_name} not connected")
