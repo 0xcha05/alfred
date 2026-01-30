@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     telegram_token: str = ""
     telegram_webhook_secret: str = ""
     telegram_allowed_user_ids: List[int] = []
+    telegram_polling: bool = True  # Use polling mode (no HTTPS needed)
     
     @field_validator('telegram_allowed_user_ids', mode='before')
     @classmethod
@@ -47,6 +48,16 @@ class Settings(BaseSettings):
             # Handle comma-separated values like "123,456,789"
             return [int(x.strip()) for x in v.split(",") if x.strip()]
         return []
+    
+    @field_validator('telegram_polling', mode='before')
+    @classmethod
+    def parse_polling(cls, v):
+        """Parse boolean from string."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() in ('true', '1', 'yes', 'on')
+        return bool(v)
     
     # Claude API
     claude_api_key: str = ""

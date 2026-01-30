@@ -50,12 +50,26 @@ async def lifespan(app: FastAPI):
     app.state.daemon_server = daemon_server
     app.state.daemon_registry = daemon_registry
     
+    # Start Telegram polling if enabled (no HTTPS needed)
+    if settings.telegram_polling and settings.telegram_token:
+        from app.services.telegram_poller import telegram_poller
+        await telegram_poller.start()
+        app.state.telegram_poller = telegram_poller
+        logger.info("   Telegram: POLLING mode (no HTTPS needed)")
+    else:
+        logger.info("   Telegram: WEBHOOK mode (requires HTTPS)")
+    
     logger.info("🎩 Alfred Prime is ready!")
     
     yield
     
     # Shutdown
     logger.info("🎩 Alfred Prime shutting down...")
+    
+    # Stop Telegram poller
+    if hasattr(app.state, 'telegram_poller'):
+        await app.state.telegram_poller.stop()
+        logger.info("   Telegram poller stopped")
     
     # Stop daemon server
     if hasattr(app.state, 'daemon_server'):
