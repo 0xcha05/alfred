@@ -21,11 +21,11 @@ class TelegramService:
         self,
         chat_id: int,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: Optional[str] = "Markdown",
         reply_to_message_id: Optional[int] = None,
         reply_markup: Optional[dict] = None,
     ) -> dict:
-        """Send a text message to a chat. Tries plain text first (most reliable)."""
+        """Send a text message to a chat. Tries Markdown first, falls back to plain text."""
         payload = {
             "chat_id": chat_id,
             "text": text,
