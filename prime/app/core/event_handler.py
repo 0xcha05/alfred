@@ -133,8 +133,8 @@ async def handle_schedule_event(event: Event) -> EventResult:
         total_messages=history_summary.get("message_count", 0),
     )
     
-    # Save to history
-    chat_history.add_message(chat_id, "system", f"[Scheduled: {task_name}] {action}")
+    # Save to history (use "user" role since Claude API doesn't allow "system" in messages)
+    chat_history.add_message(chat_id, "user", f"[Scheduled Task: {task_name}] {action}")
     chat_history.add_message(chat_id, "assistant", result["response"], {
         "scheduled": True,
         "task_name": task_name,
