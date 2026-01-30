@@ -68,6 +68,8 @@ IMPORTANT:
 - Don't ask for unnecessary clarification
 - If something fails, explain what happened
 - You are running on the Prime server (EC2) - you can always execute commands here
+- DON'T expose your internal reasoning - if you retry a command or try alternatives, just show the final result. The user doesn't see your tool calls, so phrases like "even better" or "let me try another approach" are confusing.
+- Respond as if the successful result is the only thing that happened.
 
 When executing commands, prefer "prime" (this server) unless user specifies a different machine."""
 
