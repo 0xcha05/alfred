@@ -281,6 +281,40 @@ class DaemonRegistry:
         log_fn(f"Alert from {name}: [{alert_type}] {message}")
         
         # TODO: Forward to notification system (Telegram, etc.)
+    
+    async def handle_daemon_event(self, daemon_id: str, event_data: Dict[str, Any]):
+        """Handle a proactive event from a daemon.
+        
+        Daemon events are routed to the event bus for processing by the brain.
+        """
+        from app.core.events import Event, event_bus
+        
+        conn = self.connections.get(daemon_id)
+        daemon_name = conn.name if conn else daemon_id
+        
+        source = event_data.get("source", f"daemon:{daemon_name}")
+        event_type = event_data.get("event_type", "alert")
+        payload = event_data.get("payload", {})
+        
+        logger.info(f"Daemon event from {daemon_name}: {source}/{event_type}")
+        
+        # Create an Event and publish to the bus
+        # The context should include where to respond (we'll use the first allowed telegram user for now)
+        from app.config import settings
+        
+        context = {}
+        if settings.telegram_allowed_user_ids:
+            # Send to the first allowed user
+            context["chat_id"] = settings.telegram_allowed_user_ids[0]
+        
+        event = Event(
+            source=source,
+            type=event_type,
+            payload=payload,
+            context=context,
+        )
+        
+        await event_bus.publish(event)
 
 
 # Global registry instance
@@ -368,6 +402,11 @@ class PrimeServicer:
                 elif msg_type == "alert":
                     if daemon_id:
                         self.registry.handle_alert(daemon_id, message)
+                
+                # Handle daemon event (proactive events from daemon)
+                elif msg_type == "event":
+                    if daemon_id:
+                        await self.registry.handle_daemon_event(daemon_id, message)
                 
                 else:
                     logger.warning(f"Unknown message type: {msg_type}")

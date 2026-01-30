@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/alfred/daemon/internal/executor"
+	"github.com/alfred/daemon/internal/handlers"
 )
 
 // Client manages the bidirectional connection to Alfred Prime.
@@ -54,30 +55,18 @@ type Config struct {
 	AlfredRoot      string
 }
 
-// Message types
+// Core message types (protocol level)
 const (
 	TypeRegistration    = "registration"
 	TypeRegistrationAck = "registration_ack"
 	TypeHeartbeat       = "heartbeat"
 	TypeResult          = "result"
-	TypeAlert           = "alert"
-	TypeShell           = "shell"
-	TypeReadFile        = "read_file"
-	TypeWriteFile       = "write_file"
-	TypeDeleteFile      = "delete_file"
-	TypeListFiles       = "list_files"
-	TypeListProcesses   = "list_processes"
-	TypeKillProcess     = "kill_process"
-	TypeManageService   = "manage_service"
-	TypeInstallPackage  = "install_package"
-	TypeDocker          = "docker"
-	TypeGit             = "git"
-	TypeSession         = "session"
-	TypeCron            = "cron"
-	TypeSystemInfo      = "system_info"
-	TypeSelfModify      = "self_modify"
+	TypeEvent           = "event"  // For proactive events from daemon
 	TypePing            = "ping"
 )
+
+// Note: Command types like "shell", "read_file", etc. are now handled
+// by the handler registry (handlers package), not hardcoded here.
 
 // Message is the generic message structure.
 type Message struct {
@@ -283,74 +272,32 @@ func (c *Client) handleMessage(msg map[string]interface{}) {
 	msgType, _ := msg["type"].(string)
 	commandID, _ := msg["command_id"].(string)
 
-	var result map[string]interface{}
-	var err error
-
-	switch msgType {
-	case TypePing:
-		result = map[string]interface{}{
-			"type":       TypeResult,
-			"command_id": commandID,
-			"success":    true,
-			"output":     "pong",
-		}
-
-	case TypeShell:
-		result = c.handleShell(msg)
-
-	case TypeReadFile:
-		result = c.handleReadFile(msg)
-
-	case TypeWriteFile:
-		result = c.handleWriteFile(msg)
-
-	case TypeDeleteFile:
-		result = c.handleDeleteFile(msg)
-
-	case TypeListFiles:
-		result = c.handleListFiles(msg)
-
-	case TypeSystemInfo:
-		result = c.handleSystemInfo(msg)
-
-	case TypeDocker:
-		result = c.handleDocker(msg)
-
-	case TypeGit:
-		result = c.handleGit(msg)
-
-	case TypeListProcesses:
-		result = c.handleListProcesses(msg)
-
-	case TypeKillProcess:
-		result = c.handleKillProcess(msg)
-
-	case TypeManageService:
-		result = c.handleManageService(msg)
-
-	default:
-		result = map[string]interface{}{
-			"type":       TypeResult,
-			"command_id": commandID,
-			"success":    false,
-			"error":      fmt.Sprintf("unknown command type: %s", msgType),
-		}
-	}
+	// Use the handler registry - all command types are handled there
+	// This makes the daemon extensible without modifying this code
+	result := handlers.Handle(msgType, msg)
 
 	// Add command_id and daemon_id to result
 	result["command_id"] = commandID
 	result["daemon_id"] = c.daemonID
 	result["type"] = TypeResult
 
-	if err != nil {
-		result["success"] = false
-		result["error"] = err.Error()
-	}
-
 	// Send result back to Prime
 	if err := c.sendMessage(result); err != nil {
 		log.Printf("Failed to send result: %v", err)
 	}
+}
+
+// SendEvent sends a proactive event to Prime.
+func (c *Client) SendEvent(source, eventType string, payload map[string]interface{}) error {
+	event := map[string]interface{}{
+		"type":       TypeEvent,
+		"daemon_id":  c.daemonID,
+		"source":     source,
+		"event_type": eventType,
+		"payload":    payload,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+	}
+	return c.sendMessage(event)
 }
 
 // Command handlers

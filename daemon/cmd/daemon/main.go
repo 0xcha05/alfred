@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	"github.com/alfred/daemon/internal/config"
+	"github.com/alfred/daemon/internal/emitters"
+	"github.com/alfred/daemon/internal/handlers"
 	"github.com/alfred/daemon/internal/primeclient"
 )
 
@@ -33,6 +35,10 @@ func main() {
 		log.Printf("   Alfred root: %s", cfg.AlfredRoot)
 	}
 
+	// Register built-in command handlers
+	handlers.RegisterBuiltins()
+	log.Printf("   Registered handlers: %v", handlers.DefaultRegistry.ListHandlers())
+
 	// Create Prime client
 	client := primeclient.NewClient(primeclient.Config{
 		PrimeAddress:    cfg.PrimeAddress,
@@ -44,6 +50,21 @@ func main() {
 		AlfredRoot:      cfg.AlfredRoot,
 	})
 
+	// Set up emitters for proactive events
+	emitterManager := emitters.NewManager()
+
+	// Add resource monitor
+	resourceMonitor := emitters.NewResourceMonitor(emitterManager, cfg.Name)
+	emitterManager.AddEmitter(resourceMonitor)
+
+	// Route emitter events to Prime
+	emitterManager.OnEvent(func(event emitters.Event) {
+		log.Printf("Emitting event: %s/%s", event.Source, event.Type)
+		if err := client.SendEvent(event.Source, event.Type, event.Payload); err != nil {
+			log.Printf("Failed to send event: %v", err)
+		}
+	})
+
 	// Context for lifecycle management
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -51,6 +72,11 @@ func main() {
 	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start emitters
+	if err := emitterManager.Start(); err != nil {
+		log.Printf("Failed to start emitters: %v", err)
+	}
 
 	// Connect to Prime in background
 	go func() {
@@ -66,6 +92,9 @@ func main() {
 	sig := <-sigChan
 	log.Printf("Received signal %v, shutting down...", sig)
 	cancel()
+
+	// Stop emitters
+	emitterManager.Stop()
 
 	// Close client
 	if err := client.Close(); err != nil {
