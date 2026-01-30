@@ -51,25 +51,25 @@ class Orchestrator:
     
     async def execute_task(self, task: Task) -> Task:
         """Execute a single task on its assigned daemon."""
-        from app.grpc_client import daemon_client
+        from app.grpc_server import daemon_registry, execute_shell, read_file, write_file, list_files
         
         task.status = TaskStatus.RUNNING
         task.started_at = datetime.utcnow()
         
         try:
             # Check if connected to daemon
-            if not daemon_client.is_connected(task.daemon_id):
+            if not daemon_registry.is_connected(task.daemon_id):
                 raise Exception(f"Daemon {task.daemon_id} not connected")
             
             # Execute based on action type
             if task.action == "shell":
-                result = await self._execute_shell(daemon_client, task.daemon_id, task.parameters)
+                result = await self._execute_shell(task.daemon_id, task.parameters)
             elif task.action == "read_file":
-                result = await self._execute_read_file(daemon_client, task.daemon_id, task.parameters)
+                result = await self._execute_read_file(task.daemon_id, task.parameters)
             elif task.action == "write_file":
-                result = await self._execute_write_file(daemon_client, task.daemon_id, task.parameters)
+                result = await self._execute_write_file(task.daemon_id, task.parameters)
             elif task.action == "list_files":
-                result = await self._execute_list_files(daemon_client, task.daemon_id, task.parameters)
+                result = await self._execute_list_files(task.daemon_id, task.parameters)
             else:
                 raise Exception(f"Unknown action: {task.action}")
             
@@ -102,77 +102,72 @@ class Orchestrator:
         
         return tasks
     
-    async def _execute_shell(self, client, daemon_id: str, params: dict) -> dict:
-        """Execute shell command via gRPC."""
+    async def _execute_shell(self, daemon_id: str, params: dict) -> dict:
+        """Execute shell command via daemon registry."""
+        from app.grpc_server import execute_shell
+        
         command = params.get("command", "")
         working_dir = params.get("working_directory", "")
         timeout = params.get("timeout_seconds", 300)
+        use_sudo = params.get("use_sudo", False)
         
         try:
-            output_lines = []
-            async for line in client.execute_shell(
+            result = await execute_shell(
                 daemon_id=daemon_id,
                 command=command,
                 working_directory=working_dir,
-                timeout_seconds=timeout,
-            ):
-                output_lines.append(line)
-            
-            return {
-                "success": True,
-                "output": "\n".join(output_lines),
-            }
+                timeout=float(timeout),
+                use_sudo=use_sudo,
+            )
+            return result
         except Exception as e:
             return {
                 "success": False,
                 "error": str(e),
             }
     
-    async def _execute_read_file(self, client, daemon_id: str, params: dict) -> dict:
-        """Read file via gRPC."""
+    async def _execute_read_file(self, daemon_id: str, params: dict) -> dict:
+        """Read file via daemon registry."""
+        from app.grpc_server import read_file
+        
         path = params.get("path", "")
         
         try:
-            content = await client.read_file(daemon_id, path)
-            return {
-                "success": True,
-                "content": content.decode('utf-8', errors='replace') if isinstance(content, bytes) else str(content),
-            }
+            result = await read_file(daemon_id, path)
+            return result
         except Exception as e:
             return {
                 "success": False,
                 "error": str(e),
             }
     
-    async def _execute_write_file(self, client, daemon_id: str, params: dict) -> dict:
-        """Write file via gRPC."""
+    async def _execute_write_file(self, daemon_id: str, params: dict) -> dict:
+        """Write file via daemon registry."""
+        from app.grpc_server import write_file
+        
         path = params.get("path", "")
         content = params.get("content", "")
         
         try:
             content_bytes = content.encode('utf-8') if isinstance(content, str) else content
-            success = await client.write_file(daemon_id, path, content_bytes)
-            return {
-                "success": success,
-                "path": path,
-            }
+            result = await write_file(daemon_id, path, content_bytes)
+            return result
         except Exception as e:
             return {
                 "success": False,
                 "error": str(e),
             }
     
-    async def _execute_list_files(self, client, daemon_id: str, params: dict) -> dict:
-        """List files via gRPC."""
+    async def _execute_list_files(self, daemon_id: str, params: dict) -> dict:
+        """List files via daemon registry."""
+        from app.grpc_server import list_files
+        
         path = params.get("path", ".")
         recursive = params.get("recursive", False)
         
         try:
-            files = await client.list_files(daemon_id, path, recursive)
-            return {
-                "success": True,
-                "files": files,
-            }
+            result = await list_files(daemon_id, path, recursive)
+            return result
         except Exception as e:
             return {
                 "success": False,

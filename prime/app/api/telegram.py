@@ -11,7 +11,7 @@ from app.services.telegram_service import telegram_service
 from app.core.intent import parse_intent, format_response, ActionType
 from app.core.router import router as task_router
 from app.core.orchestrator import orchestrator
-from app.grpc_client import daemon_client
+from app.grpc_server import daemon_registry
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ async def execute_intent(intent, chat_id: int, message_id: int):
             return
         
         # Check if we're connected to the daemon
-        if not daemon_client.is_connected(target_daemon):
+        if not daemon_registry.is_connected(target_daemon):
             await telegram_service.send_message(
                 chat_id=chat_id,
                 text=f"Daemon `{target_daemon}` is not connected. Waiting for connection...",

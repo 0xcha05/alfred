@@ -6,7 +6,7 @@ from typing import Optional, AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.grpc_client import daemon_client
+from app.grpc_server import read_file, write_file, list_files
 from app.core.router import router
 
 logger = logging.getLogger(__name__)
@@ -64,13 +64,15 @@ class FileTransferService:
             
             # Read file from source
             logger.info(f"Reading {source_path} from {source_machine}")
-            content = await daemon_client.read_file(source_machine, source_path)
+            result = await read_file(source_machine, source_path)
             
-            if isinstance(content, bytes):
-                total_size = len(content)
-            else:
-                content = str(content).encode('utf-8')
-                total_size = len(content)
+            if not result.get("success"):
+                raise Exception(result.get("error", "Failed to read file"))
+            
+            content = result.get("output", "")
+            if isinstance(content, str):
+                content = content.encode('utf-8')
+            total_size = len(content)
             
             yield TransferProgress(
                 source_machine=source_machine,
@@ -83,7 +85,8 @@ class FileTransferService:
             
             # Write to destination
             logger.info(f"Writing {dest_path} to {dest_machine}")
-            success = await daemon_client.write_file(dest_machine, dest_path, content)
+            write_result = await write_file(dest_machine, dest_path, content)
+            success = write_result.get("success", False)
             
             if success:
                 yield TransferProgress(
@@ -149,7 +152,8 @@ class FileTransferService:
         """Sync a directory from source to destination."""
         # List files on source
         logger.info(f"Listing {source_dir} on {source_machine}")
-        files = await daemon_client.list_files(source_machine, source_dir, recursive=True)
+        result = await list_files(source_machine, source_dir, recursive=True)
+        files = result.get("output", []) if result.get("success") else []
         
         if not files:
             yield TransferProgress(
