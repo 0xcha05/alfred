@@ -50,6 +50,20 @@ async def lifespan(app: FastAPI):
     app.state.daemon_server = daemon_server
     app.state.daemon_registry = daemon_registry
     
+    # Start event bus
+    from app.core.events import event_bus
+    from app.core.event_handler import setup_event_handlers
+    await event_bus.start()
+    setup_event_handlers()
+    app.state.event_bus = event_bus
+    logger.info("   Event bus: Started")
+    
+    # Start scheduler
+    from app.services.scheduler import scheduler
+    await scheduler.start()
+    app.state.scheduler = scheduler
+    logger.info("   Scheduler: Started")
+    
     # Start Telegram polling if enabled (no HTTPS needed)
     if settings.telegram_polling and settings.telegram_token:
         from app.services.telegram_poller import telegram_poller
@@ -65,6 +79,16 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🎩 Alfred Prime shutting down...")
+    
+    # Stop scheduler
+    if hasattr(app.state, 'scheduler'):
+        await app.state.scheduler.stop()
+        logger.info("   Scheduler stopped")
+    
+    # Stop event bus
+    if hasattr(app.state, 'event_bus'):
+        await app.state.event_bus.stop()
+        logger.info("   Event bus stopped")
     
     # Stop Telegram poller
     if hasattr(app.state, 'telegram_poller'):

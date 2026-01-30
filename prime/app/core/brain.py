@@ -52,7 +52,13 @@ YOUR CAPABILITIES:
 - Read, write, delete files
 - Run as root/sudo
 - Docker, Git, system services
+- Schedule tasks (reminders, periodic updates, recurring actions)
 - Answer questions, have conversations, be helpful
+
+SCHEDULING:
+- You can schedule recurring or one-time tasks
+- Examples: "remind me in 30 mins", "check disk space every hour", "send me news every morning"
+- Use schedule_task tool for this - scheduled tasks will message the user when they run
 
 HOW TO RESPOND:
 1. If the user is just chatting or asking questions → respond naturally, be helpful
@@ -182,6 +188,119 @@ async def think(
                 },
                 "required": ["path"]
             }
+        },
+        # Scheduling tools
+        {
+            "name": "schedule_task",
+            "description": "Schedule a recurring or one-time task. Use this when user asks for reminders, periodic updates, or scheduled actions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Short name for the task"
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "What to do when the task runs (natural language instruction)"
+                    },
+                    "interval_minutes": {
+                        "type": "integer",
+                        "description": "Run every N minutes. Use this for recurring tasks."
+                    },
+                    "run_once_in_minutes": {
+                        "type": "integer",
+                        "description": "Run once after N minutes. Use this for one-time reminders."
+                    }
+                },
+                "required": ["name", "action"]
+            }
+        },
+        {
+            "name": "list_scheduled_tasks",
+            "description": "List all scheduled tasks",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "cancel_scheduled_task",
+            "description": "Cancel a scheduled task by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The task ID to cancel"
+                    }
+                },
+                "required": ["task_id"]
+            }
+        },
+        # Web/HTTP tools
+        {
+            "name": "web_search",
+            "description": "Search the web for information. Returns search results.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query"
+                    }
+                },
+                "required": ["query"]
+            }
+        },
+        {
+            "name": "fetch_url",
+            "description": "Fetch content from a URL. Use for reading web pages, APIs, etc.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch"
+                    },
+                    "method": {
+                        "type": "string",
+                        "description": "HTTP method (GET, POST, etc.). Default: GET"
+                    },
+                    "headers": {
+                        "type": "object",
+                        "description": "Optional HTTP headers"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Optional request body for POST/PUT"
+                    }
+                },
+                "required": ["url"]
+            }
+        },
+        {
+            "name": "send_message",
+            "description": "Send a message to a specific destination. Use for proactive messaging.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "destination": {
+                        "type": "string",
+                        "description": "Where to send: 'telegram', 'webhook:URL', etc."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "The message to send"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "For telegram: the chat ID"
+                    }
+                },
+                "required": ["destination", "message"]
+            }
         }
     ]
     
@@ -230,6 +349,10 @@ async def think(
                     
                     # Execute the tool
                     try:
+                        # Add context for scheduling tools
+                        if tool_name == "schedule_task":
+                            tool_input["_context"] = {"chat_id": chat_id}
+                        
                         tool_result = await execute_tool(tool_name, tool_input, daemons)
                         result["executed"] = True
                         result["results"].append({
@@ -339,6 +462,91 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
         else:
             return await list_files(machine, path)
     
+    elif tool_name == "schedule_task":
+        from app.services.scheduler import scheduler
+        
+        name = tool_input.get("name", "Unnamed task")
+        action = tool_input.get("action", "")
+        interval = tool_input.get("interval_minutes")
+        run_once = tool_input.get("run_once_in_minutes")
+        
+        # Get context from the current execution (will be passed in)
+        context = tool_input.get("_context", {})
+        
+        task_id = await scheduler.add_task(
+            name=name,
+            description=action,
+            interval_minutes=interval if interval else run_once,
+            action=action,
+            context=context,
+        )
+        
+        # Disable after first run if one-time
+        if run_once and not interval:
+            task = await scheduler.get_task(task_id)
+            if task:
+                task.interval_minutes = None  # Will disable after first run
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "message": f"Scheduled task '{name}' (ID: {task_id})",
+            "interval": interval or run_once,
+            "recurring": bool(interval),
+        }
+    
+    elif tool_name == "list_scheduled_tasks":
+        from app.services.scheduler import scheduler
+        
+        tasks = await scheduler.list_tasks()
+        if not tasks:
+            return {"tasks": [], "message": "No scheduled tasks"}
+        
+        task_list = []
+        for t in tasks:
+            task_list.append({
+                "id": t.id,
+                "name": t.name,
+                "action": t.action,
+                "interval_minutes": t.interval_minutes,
+                "next_run": t.next_run,
+                "enabled": t.enabled,
+                "run_count": t.run_count,
+            })
+        
+        return {"tasks": task_list, "count": len(task_list)}
+    
+    elif tool_name == "cancel_scheduled_task":
+        from app.services.scheduler import scheduler
+        
+        task_id = tool_input.get("task_id")
+        if not task_id:
+            return {"error": "No task_id provided"}
+        
+        success = await scheduler.remove_task(task_id)
+        if success:
+            return {"success": True, "message": f"Cancelled task {task_id}"}
+        else:
+            return {"success": False, "error": f"Task {task_id} not found"}
+    
+    elif tool_name == "web_search":
+        return await web_search(tool_input.get("query", ""))
+    
+    elif tool_name == "fetch_url":
+        return await fetch_url(
+            url=tool_input.get("url"),
+            method=tool_input.get("method", "GET"),
+            headers=tool_input.get("headers"),
+            body=tool_input.get("body"),
+        )
+    
+    elif tool_name == "send_message":
+        return await send_message_action(
+            destination=tool_input.get("destination"),
+            message=tool_input.get("message"),
+            chat_id=tool_input.get("chat_id"),
+        )
+    
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -406,3 +614,130 @@ async def list_local_files(path: str) -> dict:
         return {"files": files, "success": True}
     except Exception as e:
         return {"error": str(e), "success": False}
+
+
+async def web_search(query: str) -> dict:
+    """Search the web using DuckDuckGo (no API key needed)."""
+    import httpx
+    
+    if not query:
+        return {"error": "No query provided"}
+    
+    try:
+        # Use DuckDuckGo HTML search (simple, no API key)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+                headers={"User-Agent": "Alfred/1.0"},
+            )
+            
+            # Parse results (basic extraction)
+            html = response.text
+            results = []
+            
+            # Simple regex to extract result titles and snippets
+            import re
+            
+            # Find result blocks
+            result_blocks = re.findall(
+                r'class="result__title".*?href="([^"]*)"[^>]*>([^<]*)</a>.*?'
+                r'class="result__snippet"[^>]*>([^<]*)',
+                html, re.DOTALL
+            )
+            
+            for url, title, snippet in result_blocks[:5]:
+                results.append({
+                    "title": title.strip(),
+                    "url": url,
+                    "snippet": snippet.strip()[:200],
+                })
+            
+            if not results:
+                # Fallback: just return that we searched
+                return {
+                    "query": query,
+                    "message": "Search completed but no structured results extracted. Try fetch_url with a specific site.",
+                    "success": True
+                }
+            
+            return {"query": query, "results": results, "success": True}
+            
+    except Exception as e:
+        return {"error": f"Search failed: {e}", "success": False}
+
+
+async def fetch_url(url: str, method: str = "GET", headers: dict = None, body: str = None) -> dict:
+    """Fetch content from a URL."""
+    import httpx
+    
+    if not url:
+        return {"error": "No URL provided"}
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            request_headers = {"User-Agent": "Alfred/1.0"}
+            if headers:
+                request_headers.update(headers)
+            
+            if method.upper() == "GET":
+                response = await client.get(url, headers=request_headers)
+            elif method.upper() == "POST":
+                response = await client.post(url, headers=request_headers, content=body)
+            elif method.upper() == "PUT":
+                response = await client.put(url, headers=request_headers, content=body)
+            elif method.upper() == "DELETE":
+                response = await client.delete(url, headers=request_headers)
+            else:
+                return {"error": f"Unsupported method: {method}"}
+            
+            # Limit response size
+            content = response.text[:10000]
+            
+            return {
+                "url": url,
+                "status_code": response.status_code,
+                "content": content,
+                "content_type": response.headers.get("content-type", ""),
+                "success": response.is_success,
+            }
+            
+    except Exception as e:
+        return {"error": f"Fetch failed: {e}", "success": False}
+
+
+async def send_message_action(destination: str, message: str, chat_id: int = None) -> dict:
+    """Send a message to a destination."""
+    import httpx
+    
+    if not destination or not message:
+        return {"error": "destination and message required"}
+    
+    try:
+        if destination == "telegram":
+            if not chat_id:
+                return {"error": "chat_id required for telegram"}
+            
+            from app.services.telegram_service import telegram_service
+            await telegram_service.send_message(chat_id=chat_id, text=message)
+            return {"success": True, "destination": "telegram", "chat_id": chat_id}
+        
+        elif destination.startswith("webhook:"):
+            webhook_url = destination[8:]  # Remove "webhook:" prefix
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    webhook_url,
+                    json={"message": message},
+                )
+                return {
+                    "success": response.is_success,
+                    "destination": webhook_url,
+                    "status_code": response.status_code,
+                }
+        
+        else:
+            return {"error": f"Unknown destination: {destination}"}
+            
+    except Exception as e:
+        return {"error": f"Send failed: {e}", "success": False}
