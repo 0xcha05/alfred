@@ -1,10 +1,39 @@
 package config
 
 import (
+	"bufio"
 	"os"
 	"strconv"
 	"strings"
 )
+
+// loadEnvFile loads environment variables from a .env file
+func loadEnvFile(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return // File doesn't exist, that's fine
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Parse KEY=value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Only set if not already set (env vars take precedence)
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+}
 
 // Config holds daemon configuration
 type Config struct {
@@ -32,6 +61,11 @@ type Config struct {
 
 // Load loads configuration from environment variables or config file
 func Load(configPath string) (*Config, error) {
+	// Try to load .env file from current directory
+	loadEnvFile(".env")
+	// Also try from daemon directory if run from elsewhere
+	loadEnvFile("daemon/.env")
+	
 	hostname, _ := os.Hostname()
 
 	// Default capabilities - full control

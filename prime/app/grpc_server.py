@@ -571,15 +571,36 @@ async def start_daemon_server(host: str = "0.0.0.0", port: int = 50051):
     return server
 
 
+def resolve_daemon(daemon_id_or_name: str) -> str:
+    """Resolve a daemon name or ID to an actual daemon_id.
+    
+    Accepts:
+    - daemon_id (e.g., "daemon-0001") - returned as-is
+    - daemon name (e.g., "macbook") - looked up and daemon_id returned
+    """
+    # If it looks like a daemon_id, use it directly
+    if daemon_id_or_name.startswith("daemon-"):
+        return daemon_id_or_name
+    
+    # Otherwise, look up by name
+    conn = daemon_registry.get_by_name(daemon_id_or_name)
+    if conn:
+        return conn.daemon_id
+    
+    # Not found
+    raise Exception(f"Daemon {daemon_id_or_name} not connected")
+
+
 # Convenience functions for sending commands
 async def execute_shell(
-    daemon_id: str,
+    daemon_id_or_name: str,
     command: str,
     working_directory: str = "",
     timeout: float = 60.0,
     use_sudo: bool = False,
 ) -> Dict[str, Any]:
     """Execute a shell command on a daemon."""
+    daemon_id = resolve_daemon(daemon_id_or_name)
     return await daemon_registry.send_command(
         daemon_id,
         CommandType.SHELL,
@@ -592,8 +613,9 @@ async def execute_shell(
     )
 
 
-async def read_file(daemon_id: str, path: str) -> Dict[str, Any]:
+async def read_file(daemon_id_or_name: str, path: str) -> Dict[str, Any]:
     """Read a file from a daemon."""
+    daemon_id = resolve_daemon(daemon_id_or_name)
     return await daemon_registry.send_command(
         daemon_id,
         CommandType.READ_FILE,
@@ -602,12 +624,13 @@ async def read_file(daemon_id: str, path: str) -> Dict[str, Any]:
 
 
 async def write_file(
-    daemon_id: str,
+    daemon_id_or_name: str,
     path: str,
     content: bytes,
     create_dirs: bool = True,
 ) -> Dict[str, Any]:
     """Write a file on a daemon."""
+    daemon_id = resolve_daemon(daemon_id_or_name)
     import base64
     return await daemon_registry.send_command(
         daemon_id,
@@ -621,11 +644,12 @@ async def write_file(
 
 
 async def list_files(
-    daemon_id: str,
+    daemon_id_or_name: str,
     path: str,
     recursive: bool = False,
 ) -> Dict[str, Any]:
     """List files on a daemon."""
+    daemon_id = resolve_daemon(daemon_id_or_name)
     return await daemon_registry.send_command(
         daemon_id,
         CommandType.LIST_FILES,

@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"

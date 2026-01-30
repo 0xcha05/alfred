@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alfred/daemon/internal/executor"
 	"github.com/alfred/daemon/internal/handlers"
 )
 
@@ -35,9 +34,6 @@ type Client struct {
 	conn     net.Conn
 	daemonID string
 	mu       sync.RWMutex
-
-	// Command execution
-	executor *executor.Executor
 
 	// Reconnection
 	reconnectDelay time.Duration
@@ -91,7 +87,6 @@ func NewClient(cfg Config) *Client {
 		capabilities:    cfg.Capabilities,
 		isSoulDaemon:    cfg.IsSoulDaemon,
 		alfredRoot:      cfg.AlfredRoot,
-		executor:        executor.New(),
 		reconnectDelay:  1 * time.Second,
 		maxReconnect:    60 * time.Second,
 	}
@@ -300,280 +295,13 @@ func (c *Client) SendEvent(source, eventType string, payload map[string]interfac
 	return c.sendMessage(event)
 }
 
-// Command handlers
-
-func (c *Client) handleShell(msg map[string]interface{}) map[string]interface{} {
-	command, _ := msg["command"].(string)
-	workDir, _ := msg["working_directory"].(string)
-	useSudo, _ := msg["use_sudo"].(bool)
-
-	if useSudo {
-		command = "sudo " + command
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	result, err := c.executor.ExecuteShell(ctx, command, workDir, nil, nil)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success":   result.ExitCode == 0,
-		"output":    result.Stdout,
-		"error":     result.Stderr,
-		"exit_code": result.ExitCode,
-	}
-}
-
-func (c *Client) handleReadFile(msg map[string]interface{}) map[string]interface{} {
-	path, _ := msg["path"].(string)
-
-	content, err := c.executor.ReadFile(path)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output":  string(content),
-	}
-}
-
-func (c *Client) handleWriteFile(msg map[string]interface{}) map[string]interface{} {
-	path, _ := msg["path"].(string)
-	content, _ := msg["content"].(string)
-	createDirs, _ := msg["create_dirs"].(bool)
-
-	// Decode base64 content if needed
-	var data []byte
-	data = []byte(content)
-
-	err := c.executor.WriteFile(path, data, 0644, createDirs)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output":  fmt.Sprintf("Written %d bytes to %s", len(data), path),
-	}
-}
-
-func (c *Client) handleDeleteFile(msg map[string]interface{}) map[string]interface{} {
-	path, _ := msg["path"].(string)
-	recursive, _ := msg["recursive"].(bool)
-
-	var err error
-	if recursive {
-		err = os.RemoveAll(path)
-	} else {
-		err = os.Remove(path)
-	}
-
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output":  fmt.Sprintf("Deleted %s", path),
-	}
-}
-
-func (c *Client) handleListFiles(msg map[string]interface{}) map[string]interface{} {
-	path, _ := msg["path"].(string)
-	recursive, _ := msg["recursive"].(bool)
-
-	files, err := c.executor.ListFiles(path, recursive)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	// Convert to serializable format
-	var fileList []map[string]interface{}
-	for _, f := range files {
-		fileList = append(fileList, map[string]interface{}{
-			"name":         f.Name,
-			"path":         f.Path,
-			"size":         f.Size,
-			"is_directory": f.IsDir,
-			"modified_at":  f.ModTime.Unix(),
-		})
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output":  fileList,
-	}
-}
-
-func (c *Client) handleSystemInfo(msg map[string]interface{}) map[string]interface{} {
-	info, err := c.executor.GetSystemInfo()
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output": map[string]interface{}{
-			"hostname":    info.Hostname,
-			"os":          info.OS,
-			"arch":        info.Arch,
-			"num_cpu":     info.NumCPU,
-			"username":    info.Username,
-			"home_dir":    info.HomeDir,
-			"working_dir": info.WorkingDir,
-			"pid":         info.PID,
-		},
-	}
-}
-
-func (c *Client) handleDocker(msg map[string]interface{}) map[string]interface{} {
-	argsRaw, _ := msg["args"].([]interface{})
-	workDir, _ := msg["working_directory"].(string)
-
-	var args []string
-	for _, a := range argsRaw {
-		if s, ok := a.(string); ok {
-			args = append(args, s)
-		}
-	}
-
-	ctx := context.Background()
-	result, err := c.executor.ManageDocker(ctx, args...)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	_ = workDir // TODO: use working directory
-
-	return map[string]interface{}{
-		"success":   result.ExitCode == 0,
-		"output":    result.Stdout,
-		"error":     result.Stderr,
-		"exit_code": result.ExitCode,
-	}
-}
-
-func (c *Client) handleGit(msg map[string]interface{}) map[string]interface{} {
-	argsRaw, _ := msg["args"].([]interface{})
-	workDir, _ := msg["working_directory"].(string)
-
-	var args []string
-	for _, a := range argsRaw {
-		if s, ok := a.(string); ok {
-			args = append(args, s)
-		}
-	}
-
-	ctx := context.Background()
-	result, err := c.executor.GitOperation(ctx, workDir, args...)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success":   result.ExitCode == 0,
-		"output":    result.Stdout,
-		"error":     result.Stderr,
-		"exit_code": result.ExitCode,
-	}
-}
-
-func (c *Client) handleListProcesses(msg map[string]interface{}) map[string]interface{} {
-	ctx := context.Background()
-	result, err := c.executor.GetProcessList(ctx)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"output":  result.Stdout,
-	}
-}
-
-func (c *Client) handleKillProcess(msg map[string]interface{}) map[string]interface{} {
-	pidFloat, _ := msg["pid"].(float64)
-	signalFloat, _ := msg["signal"].(float64)
-	pid := int(pidFloat)
-	signal := int(signalFloat)
-
-	if signal == 0 {
-		signal = 15 // SIGTERM
-	}
-
-	ctx := context.Background()
-	cmd := fmt.Sprintf("kill -%d %d", signal, pid)
-	result, err := c.executor.ExecuteShell(ctx, cmd, "", nil, nil)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": result.ExitCode == 0,
-		"output":  result.Stdout,
-		"error":   result.Stderr,
-	}
-}
-
-func (c *Client) handleManageService(msg map[string]interface{}) map[string]interface{} {
-	serviceName, _ := msg["service_name"].(string)
-	action, _ := msg["action"].(string)
-
-	ctx := context.Background()
-	result, err := c.executor.ManageService(ctx, serviceName, action)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}
-	}
-
-	return map[string]interface{}{
-		"success":   result.ExitCode == 0,
-		"output":    result.Stdout,
-		"error":     result.Stderr,
-		"exit_code": result.ExitCode,
-	}
-}
+// NOTE: Command handlers are now in the handlers package (handlers.RegisterBuiltins())
+// This keeps client.go focused on connection management only.
 
 // SendAlert sends an alert to Prime.
 func (c *Client) SendAlert(alertType, message, severity string, metadata map[string]string) error {
 	msg := map[string]interface{}{
-		"type":       TypeAlert,
+		"type":       "alert",
 		"daemon_id":  c.daemonID,
 		"alert_type": alertType,
 		"message":    message,
