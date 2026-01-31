@@ -59,8 +59,15 @@ CAPABILITIES:
 BEHAVIOR:
 - Be concise and direct
 - Execute first, report results
-- Don't over-explain or narrate your process
 - If something fails, briefly explain and move on
+
+COMMUNICATION:
+- For tasks taking >10 seconds: send_progress to keep user informed
+- For complex/multi-step tasks: update user at each major step
+- If requirements are unclear: use ask_user BEFORE trying things
+- If multiple valid approaches exist: ask_user which they prefer
+- If something might be destructive/risky: ask_user first
+- Don't silently try multiple approaches - if first attempt fails, ask user
 
 MULTI-STEP TASKS:
 - For complex file processing: use create_workspace first, then workspace_add_source to copy files in
@@ -73,6 +80,18 @@ MULTI-STEP TASKS:
 CONTEXT:
 - Messages in conversation: {total_messages}
 - History file: {history_file if history_file else "Not yet created"}"""
+
+
+async def check_new_messages(chat_id: int) -> list:
+    """Check for new messages that arrived during processing."""
+    try:
+        from app.services.message_queue import message_queue
+        
+        new_msgs = await message_queue.get_new_messages(chat_id)
+        return [msg.text for msg in new_msgs]
+    except Exception as e:
+        logger.warning(f"Failed to check new messages: {e}")
+        return []
 
 
 async def think(
@@ -359,6 +378,47 @@ async def think(
                 },
                 "required": ["workspace_id"]
             }
+        },
+        {
+            "name": "send_progress",
+            "description": "Send an intermediate progress update to the user. Use this during long/complex tasks to keep user informed. Good for: starting a task, completed a step, encountered an issue, asking for clarification.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Progress update message"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "The chat ID"
+                    }
+                },
+                "required": ["message", "chat_id"]
+            }
+        },
+        {
+            "name": "ask_user",
+            "description": "Ask the user a clarifying question before proceeding. Use when: requirements are ambiguous, multiple valid approaches exist, task seems risky, you need more info. The response will come in the next conversation turn.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The question to ask"
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional: specific options to present"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "The chat ID"
+                    }
+                },
+                "required": ["question", "chat_id"]
+            }
         }
     ]
     
@@ -445,6 +505,17 @@ async def think(
                             "content": f"Error: {str(e)}",
                             "is_error": True
                         })
+            
+            # Check for new messages that arrived during tool execution
+            new_messages = await check_new_messages(chat_id)
+            if new_messages:
+                # Append new user messages to tool results
+                new_msg_text = "\n".join([f"[New message from user]: {m}" for m in new_messages])
+                tool_results.append({
+                    "type": "text",
+                    "text": new_msg_text
+                })
+                logger.info(f"Incorporated {len(new_messages)} new message(s) into conversation")
             
             # Continue conversation with tool results
             # Convert response.content to serializable format
@@ -640,6 +711,19 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
     elif tool_name == "workspace_get_path":
         return workspace_get_path_action(
             workspace_id=tool_input.get("workspace_id"),
+        )
+    
+    elif tool_name == "send_progress":
+        return await send_progress_action(
+            message=tool_input.get("message"),
+            chat_id=tool_input.get("chat_id"),
+        )
+    
+    elif tool_name == "ask_user":
+        return await ask_user_action(
+            question=tool_input.get("question"),
+            chat_id=tool_input.get("chat_id"),
+            options=tool_input.get("options"),
         )
     
     else:
@@ -943,3 +1027,43 @@ def workspace_get_path_action(workspace_id: str) -> dict:
         }
     except Exception as e:
         return {"error": f"Failed to get workspace: {e}", "success": False}
+
+
+async def send_progress_action(message: str, chat_id: int) -> dict:
+    """Send a progress update to the user."""
+    if not message or not chat_id:
+        return {"error": "message and chat_id required"}
+    
+    try:
+        from app.services.telegram_service import telegram_service
+        
+        await telegram_service.send_message(chat_id=chat_id, text=f"⏳ {message}")
+        return {"success": True, "sent": message}
+    except Exception as e:
+        return {"error": f"Failed to send progress: {e}", "success": False}
+
+
+async def ask_user_action(question: str, chat_id: int, options: list = None) -> dict:
+    """Ask the user a question."""
+    if not question or not chat_id:
+        return {"error": "question and chat_id required"}
+    
+    try:
+        from app.services.telegram_service import telegram_service
+        
+        if options and len(options) > 0:
+            # Format with numbered options
+            options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
+            full_message = f"❓ {question}\n\n{options_text}"
+        else:
+            full_message = f"❓ {question}"
+        
+        await telegram_service.send_message(chat_id=chat_id, text=full_message)
+        
+        return {
+            "success": True,
+            "asked": question,
+            "note": "User response will come in next message. Stop here and wait for their reply.",
+        }
+    except Exception as e:
+        return {"error": f"Failed to ask user: {e}", "success": False}
