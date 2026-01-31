@@ -55,6 +55,7 @@ CAPABILITIES:
 - Docker, Git, services, processes
 - Receive files from user (auto-downloaded to /home/ec2-user/alfred/data/media/)
 - Send files back to user via Telegram (video, photo, audio, documents)
+- Full browser automation on daemon machines (Playwright): navigate, click, type, get content, screenshots
 
 BEHAVIOR:
 - Be concise and direct
@@ -419,6 +420,159 @@ async def think(
                 },
                 "required": ["question", "chat_id"]
             }
+        },
+        # Browser automation tools (run on daemon machines with browser support)
+        {
+            "name": "browser_launch",
+            "description": "Launch a browser on a daemon machine. Must be called before other browser commands. Use headless=false to see the browser.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {
+                        "type": "string",
+                        "description": "The machine to run browser on (e.g., 'macbook')"
+                    },
+                    "headless": {
+                        "type": "boolean",
+                        "description": "Run headless (invisible). Default false to show browser."
+                    }
+                },
+                "required": ["machine"]
+            }
+        },
+        {
+            "name": "browser_goto",
+            "description": "Navigate browser to a URL.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "url": {"type": "string", "description": "URL to navigate to"}
+                },
+                "required": ["machine", "url"]
+            }
+        },
+        {
+            "name": "browser_click",
+            "description": "Click an element by CSS selector.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "selector": {"type": "string", "description": "CSS selector (e.g., 'button.submit', '#login', '[data-testid=\"odds\"]')"}
+                },
+                "required": ["machine", "selector"]
+            }
+        },
+        {
+            "name": "browser_type",
+            "description": "Type text into an input field.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "selector": {"type": "string", "description": "CSS selector for input"},
+                    "text": {"type": "string", "description": "Text to type"}
+                },
+                "required": ["machine", "selector", "text"]
+            }
+        },
+        {
+            "name": "browser_get_text",
+            "description": "Get text content of an element.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "selector": {"type": "string", "description": "CSS selector"}
+                },
+                "required": ["machine", "selector"]
+            }
+        },
+        {
+            "name": "browser_get_content",
+            "description": "Get the full page content as text. Good for understanding page structure.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"}
+                },
+                "required": ["machine"]
+            }
+        },
+        {
+            "name": "browser_screenshot",
+            "description": "Take a screenshot of the page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "path": {"type": "string", "description": "Path to save screenshot (default: /tmp/screenshot.png)"},
+                    "full_page": {"type": "boolean", "description": "Capture full page (default: false)"}
+                },
+                "required": ["machine"]
+            }
+        },
+        {
+            "name": "browser_evaluate",
+            "description": "Run JavaScript on the page. Returns the result.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "script": {"type": "string", "description": "JavaScript code to execute"}
+                },
+                "required": ["machine", "script"]
+            }
+        },
+        {
+            "name": "browser_wait",
+            "description": "Wait for an element to appear.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "selector": {"type": "string", "description": "CSS selector to wait for"},
+                    "timeout": {"type": "integer", "description": "Timeout in ms (default: 10000)"}
+                },
+                "required": ["machine", "selector"]
+            }
+        },
+        {
+            "name": "browser_scroll",
+            "description": "Scroll the page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "direction": {"type": "string", "description": "'down' or 'up' (default: down)"},
+                    "amount": {"type": "integer", "description": "Pixels to scroll (default: 500)"}
+                },
+                "required": ["machine"]
+            }
+        },
+        {
+            "name": "browser_get_elements",
+            "description": "Get text of multiple elements matching selector. Returns list of texts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"},
+                    "selector": {"type": "string", "description": "CSS selector"}
+                },
+                "required": ["machine", "selector"]
+            }
+        },
+        {
+            "name": "browser_close",
+            "description": "Close the browser.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "machine": {"type": "string", "description": "The machine"}
+                },
+                "required": ["machine"]
+            }
         }
     ]
     
@@ -725,6 +879,32 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
             chat_id=tool_input.get("chat_id"),
             options=tool_input.get("options"),
         )
+    
+    # Browser automation tools - all run on daemon machines
+    elif tool_name.startswith("browser_"):
+        machine = tool_input.get("machine")
+        if not machine:
+            return {"error": "machine parameter required for browser tools"}
+        
+        # Map tool name to daemon command
+        browser_action = tool_name  # e.g., browser_goto -> browser_goto
+        
+        # Build params for daemon
+        params = {k: v for k, v in tool_input.items() if k != "machine"}
+        
+        # Find the daemon
+        from app.grpc_server import daemon_registry, send_command, resolve_daemon
+        
+        daemon_id = resolve_daemon(machine, daemons)
+        if not daemon_id:
+            return {"error": f"Machine '{machine}' not connected. Available: {[d.name for d in daemons]}"}
+        
+        # Send to daemon
+        try:
+            result = await send_command(daemon_id, browser_action, params)
+            return result if result else {"error": "No response from daemon"}
+        except Exception as e:
+            return {"error": f"Browser command failed: {e}"}
     
     else:
         return {"error": f"Unknown tool: {tool_name}"}

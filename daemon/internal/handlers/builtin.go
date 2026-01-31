@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/alfred/daemon/internal/browser"
 )
 
 // RegisterBuiltins registers all built-in command handlers.
@@ -41,6 +43,20 @@ func RegisterBuiltins() {
 
 	// Generic exec - runs any command
 	Register("exec", handleExec)
+
+	// Browser automation
+	Register("browser_launch", handleBrowserLaunch)
+	Register("browser_goto", handleBrowserGoto)
+	Register("browser_click", handleBrowserClick)
+	Register("browser_type", handleBrowserType)
+	Register("browser_get_text", handleBrowserGetText)
+	Register("browser_get_content", handleBrowserGetContent)
+	Register("browser_screenshot", handleBrowserScreenshot)
+	Register("browser_evaluate", handleBrowserEvaluate)
+	Register("browser_wait", handleBrowserWait)
+	Register("browser_scroll", handleBrowserScroll)
+	Register("browser_get_elements", handleBrowserGetElements)
+	Register("browser_close", handleBrowserClose)
 }
 
 func handlePing(params map[string]interface{}) map[string]interface{} {
@@ -469,4 +485,214 @@ func handleManageService(params map[string]interface{}) map[string]interface{} {
 	}
 
 	return result
+}
+
+// Browser automation handlers
+
+func handleBrowserLaunch(params map[string]interface{}) map[string]interface{} {
+	headless, _ := params["headless"].(bool)
+
+	result, err := browser.DefaultManager.Launch(headless)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"message": result.Message,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserGoto(params map[string]interface{}) map[string]interface{} {
+	url, _ := params["url"].(string)
+	if url == "" {
+		return map[string]interface{}{"success": false, "error": "url required"}
+	}
+
+	result, err := browser.DefaultManager.Goto(url)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"url":     result.URL,
+		"title":   result.Title,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserClick(params map[string]interface{}) map[string]interface{} {
+	selector, _ := params["selector"].(string)
+	if selector == "" {
+		return map[string]interface{}{"success": false, "error": "selector required"}
+	}
+
+	result, err := browser.DefaultManager.Click(selector)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserType(params map[string]interface{}) map[string]interface{} {
+	selector, _ := params["selector"].(string)
+	text, _ := params["text"].(string)
+	if selector == "" {
+		return map[string]interface{}{"success": false, "error": "selector required"}
+	}
+
+	result, err := browser.DefaultManager.Type(selector, text)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserGetText(params map[string]interface{}) map[string]interface{} {
+	selector, _ := params["selector"].(string)
+	if selector == "" {
+		return map[string]interface{}{"success": false, "error": "selector required"}
+	}
+
+	result, err := browser.DefaultManager.GetText(selector)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"text":    result.Text,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserGetContent(params map[string]interface{}) map[string]interface{} {
+	result, err := browser.DefaultManager.GetContent()
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"content": result.Content,
+		"url":     result.URL,
+		"title":   result.Title,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserScreenshot(params map[string]interface{}) map[string]interface{} {
+	path, _ := params["path"].(string)
+	fullPage, _ := params["full_page"].(bool)
+	if path == "" {
+		path = "/tmp/screenshot.png"
+	}
+
+	result, err := browser.DefaultManager.Screenshot(path, fullPage)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"path":    result.Path,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserEvaluate(params map[string]interface{}) map[string]interface{} {
+	script, _ := params["script"].(string)
+	if script == "" {
+		return map[string]interface{}{"success": false, "error": "script required"}
+	}
+
+	result, err := browser.DefaultManager.Evaluate(script)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"result":  result.Result,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserWait(params map[string]interface{}) map[string]interface{} {
+	selector, _ := params["selector"].(string)
+	timeout, _ := params["timeout"].(float64)
+	if selector == "" {
+		return map[string]interface{}{"success": false, "error": "selector required"}
+	}
+	if timeout == 0 {
+		timeout = 10000
+	}
+
+	result, err := browser.DefaultManager.Wait(selector, int(timeout))
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserScroll(params map[string]interface{}) map[string]interface{} {
+	direction, _ := params["direction"].(string)
+	amount, _ := params["amount"].(float64)
+	if direction == "" {
+		direction = "down"
+	}
+	if amount == 0 {
+		amount = 500
+	}
+
+	result, err := browser.DefaultManager.Execute(browser.Command{
+		Action:    "scroll",
+		Direction: direction,
+		Amount:    int(amount),
+	})
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"error":   result.Error,
+	}
+}
+
+func handleBrowserGetElements(params map[string]interface{}) map[string]interface{} {
+	selector, _ := params["selector"].(string)
+	if selector == "" {
+		return map[string]interface{}{"success": false, "error": "selector required"}
+	}
+
+	result, err := browser.DefaultManager.Execute(browser.Command{
+		Action:   "get_elements",
+		Selector: selector,
+	})
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success":  result.Success,
+		"elements": result.Elements,
+		"count":    result.Count,
+		"error":    result.Error,
+	}
+}
+
+func handleBrowserClose(params map[string]interface{}) map[string]interface{} {
+	result, err := browser.DefaultManager.Close()
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+	return map[string]interface{}{
+		"success": result.Success,
+		"message": result.Message,
+		"error":   result.Error,
+	}
 }
