@@ -46,7 +46,7 @@ async def handle_command(cmd: dict) -> dict:
             playwright = await async_playwright().start()
             
             if use_real_chrome:
-                # Connect to user's real Chrome (must be launched with --remote-debugging-port)
+                # Try to connect to existing Chrome with debugging port
                 try:
                     browser = await playwright.chromium.connect_over_cdp(f"http://localhost:{chrome_port}")
                     contexts = browser.contexts
@@ -60,15 +60,13 @@ async def handle_command(cmd: dict) -> dict:
                     else:
                         context = await browser.new_context()
                         page = await context.new_page()
-                    return {"success": True, "message": f"Connected to real Chrome on port {chrome_port}", "mode": "real_chrome"}
+                    return {"success": True, "message": f"Connected to Chrome on port {chrome_port}", "mode": "connected"}
                 except Exception as e:
-                    # Chrome not running with debug port - provide instructions
-                    return {
-                        "success": False,
-                        "error": f"Could not connect to Chrome: {e}",
-                        "instructions": f"Start Chrome with: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port={chrome_port}",
-                        "alternative": "Or use launch with use_real_chrome=false for a fresh browser"
-                    }
+                    # Fall back to launching Playwright's own Chromium (separate from user's Chrome)
+                    browser = await playwright.chromium.launch(headless=False)
+                    context = await browser.new_context(viewport={"width": 1280, "height": 800})
+                    page = await context.new_page()
+                    return {"success": True, "message": "Launched Playwright Chromium (your Chrome is unaffected)", "mode": "playwright"}
             else:
                 # Use Playwright's own browser (fresh, no logins)
                 browser = await playwright.chromium.launch(headless=headless)
