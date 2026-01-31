@@ -127,12 +127,33 @@ class TelegramPoller:
                 # Check for caption on media
                 if caption:
                     text = caption
-                # Check for various media types
+                # Check for various media types - generate descriptive text
                 elif any(key in message for key in ["video", "photo", "audio", "voice", "document", "sticker"]):
                     media_type = next(key for key in ["video", "photo", "audio", "voice", "document", "sticker"] if key in message)
                     logger.info(f"Received {media_type} from {user_id} (no caption)")
-                    # Skip processing media without text/caption
-                    return
+                    
+                    # Create context text so Alfred knows media was sent
+                    media_info = message.get(media_type, {})
+                    if media_type == "photo":
+                        # Photo is a list, get the largest
+                        text = "[User sent a photo]"
+                    elif media_type == "video":
+                        duration = media_info.get("duration", "unknown")
+                        text = f"[User sent a video ({duration}s)]"
+                    elif media_type == "audio":
+                        duration = media_info.get("duration", "unknown")
+                        text = f"[User sent audio ({duration}s)]"
+                    elif media_type == "voice":
+                        duration = media_info.get("duration", "unknown")
+                        text = f"[User sent a voice message ({duration}s)]"
+                    elif media_type == "document":
+                        filename = media_info.get("file_name", "unknown")
+                        text = f"[User sent a file: {filename}]"
+                    elif media_type == "sticker":
+                        emoji = media_info.get("emoji", "")
+                        text = f"[User sent a sticker {emoji}]"
+                    else:
+                        text = f"[User sent {media_type}]"
                 else:
                     # Unknown message type with no text
                     logger.info(f"Received message without text from {user_id}")
