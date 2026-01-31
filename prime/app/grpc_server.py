@@ -713,12 +713,16 @@ async def send_command(
     This allows sending any command type (including browser_* commands)
     without needing to add them to the CommandType enum.
     """
+    logger.info(f"send_command called: {command_type} to {daemon_id_or_name}")
+    
     daemon_id = resolve_daemon(daemon_id_or_name)
+    logger.info(f"Resolved to daemon_id: {daemon_id}")
     
     # Use string command type directly instead of enum
     # This bypasses the CommandType enum for custom commands
     conn = daemon_registry.connections.get(daemon_id)
     if not conn:
+        logger.error(f"Daemon {daemon_id} not in connections")
         raise Exception(f"Daemon {daemon_id} not connected")
     
     command_id = str(uuid.uuid4())
@@ -727,6 +731,8 @@ async def send_command(
         "id": command_id,
         "params": params or {},
     }
+    
+    logger.info(f"Sending command {command_id}: {command_type}")
     
     # Create pending command entry (use SHELL as placeholder for type)
     pending = PendingCommand(
@@ -738,10 +744,12 @@ async def send_command(
     
     # Put command in queue
     await conn.command_queue.put(command)
+    logger.info(f"Command {command_id} queued, waiting for response...")
     
     # Wait for response
     try:
         result = await asyncio.wait_for(pending.response.wait(), timeout=timeout)
+        logger.info(f"Command {command_id} completed: {pending.result}")
         return pending.result or {}
     except asyncio.TimeoutError:
         logger.error(f"Command {command_id} timed out after {timeout}s")

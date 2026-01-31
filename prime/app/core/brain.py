@@ -906,17 +906,24 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
         # Find the daemon
         from app.grpc_server import send_command, resolve_daemon
         
+        logger.info(f"Browser tool: {browser_action} on machine '{machine}' with params {params}")
+        
         try:
             daemon_id = resolve_daemon(machine)
+            logger.info(f"Resolved daemon: {daemon_id}")
         except Exception as e:
             daemon_names = [d.name for d in daemons] if daemons else []
+            logger.error(f"Failed to resolve daemon '{machine}': {e}")
             return {"error": f"Machine '{machine}' not connected. Available: {daemon_names}"}
         
         # Send to daemon
         try:
+            logger.info(f"Sending {browser_action} to {daemon_id}...")
             result = await send_command(daemon_id, browser_action, params)
+            logger.info(f"Browser result: {result}")
             return result if result else {"error": "No response from daemon"}
         except Exception as e:
+            logger.error(f"Browser command failed: {e}")
             return {"error": f"Browser command failed: {e}"}
     
     else:
