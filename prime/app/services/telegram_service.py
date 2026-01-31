@@ -1,12 +1,18 @@
 """Telegram bot service for sending messages and handling interactions."""
 
 import logging
-from typing import Optional, List
+import os
+from pathlib import Path
+from typing import Optional, List, Tuple
 import httpx
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Directory to store downloaded media
+MEDIA_DIR = Path("/home/ec2-user/alfred/data/media")
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class TelegramService:
@@ -216,6 +222,233 @@ class TelegramService:
         except Exception as e:
             logger.error(f"Failed to get webhook info: {e}")
             raise
+    
+    async def get_file(self, file_id: str) -> Optional[dict]:
+        """Get file info from Telegram."""
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/getFile",
+                json={"file_id": file_id},
+            )
+            response.raise_for_status()
+            result = response.json()
+            if result.get("ok"):
+                return result.get("result")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get file info: {e}")
+            return None
+    
+    async def download_file(self, file_id: str, save_as: Optional[str] = None) -> Optional[str]:
+        """Download a file from Telegram and save it locally.
+        
+        Args:
+            file_id: The Telegram file_id
+            save_as: Optional filename to save as (will be placed in MEDIA_DIR)
+            
+        Returns:
+            The local file path if successful, None otherwise
+        """
+        try:
+            # Get file info
+            file_info = await self.get_file(file_id)
+            if not file_info:
+                return None
+            
+            file_path = file_info.get("file_path")
+            if not file_path:
+                logger.error("No file_path in file info")
+                return None
+            
+            # Determine local filename
+            if save_as:
+                local_filename = save_as
+            else:
+                # Use original filename or generate from file_id
+                local_filename = os.path.basename(file_path)
+            
+            local_path = MEDIA_DIR / local_filename
+            
+            # Download the file
+            download_url = f"https://api.telegram.org/file/bot{self.token}/{file_path}"
+            response = await self.client.get(download_url)
+            response.raise_for_status()
+            
+            # Save to disk
+            with open(local_path, "wb") as f:
+                f.write(response.content)
+            
+            logger.info(f"Downloaded file to {local_path}")
+            return str(local_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to download file: {e}")
+            return None
+    
+    async def download_media(self, message: dict) -> Optional[Tuple[str, str]]:
+        """Download media from a Telegram message.
+        
+        Returns:
+            Tuple of (local_path, media_type) if successful, None otherwise
+        """
+        media_types = ["video", "photo", "audio", "voice", "document", "video_note", "animation"]
+        
+        for media_type in media_types:
+            if media_type in message:
+                media = message[media_type]
+                
+                # Photo is a list - get the largest (last) one
+                if media_type == "photo":
+                    media = media[-1]  # Largest photo
+                
+                file_id = media.get("file_id")
+                if not file_id:
+                    continue
+                
+                # Generate filename with extension
+                file_name = media.get("file_name")
+                if not file_name:
+                    # Infer extension from media type
+                    ext_map = {
+                        "video": ".mp4",
+                        "photo": ".jpg",
+                        "audio": ".mp3",
+                        "voice": ".ogg",
+                        "video_note": ".mp4",
+                        "animation": ".mp4",
+                    }
+                    ext = ext_map.get(media_type, "")
+                    file_name = f"{file_id[:20]}{ext}"
+                
+                local_path = await self.download_file(file_id, file_name)
+                if local_path:
+                    return (local_path, media_type)
+        
+        return None
+    
+    async def send_document(
+        self,
+        chat_id: int,
+        file_path: str,
+        caption: Optional[str] = None,
+    ) -> dict:
+        """Send a document/file to a chat."""
+        try:
+            with open(file_path, "rb") as f:
+                files = {"document": (os.path.basename(file_path), f)}
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                
+                response = await self.client.post(
+                    f"{self.base_url}/sendDocument",
+                    data=data,
+                    files=files,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.error(f"Failed to send document: {e}")
+            raise
+    
+    async def send_video(
+        self,
+        chat_id: int,
+        file_path: str,
+        caption: Optional[str] = None,
+    ) -> dict:
+        """Send a video to a chat."""
+        try:
+            with open(file_path, "rb") as f:
+                files = {"video": (os.path.basename(file_path), f)}
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                
+                response = await self.client.post(
+                    f"{self.base_url}/sendVideo",
+                    data=data,
+                    files=files,
+                    timeout=300.0,  # Videos can take a while
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.error(f"Failed to send video: {e}")
+            raise
+    
+    async def send_photo(
+        self,
+        chat_id: int,
+        file_path: str,
+        caption: Optional[str] = None,
+    ) -> dict:
+        """Send a photo to a chat."""
+        try:
+            with open(file_path, "rb") as f:
+                files = {"photo": (os.path.basename(file_path), f)}
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                
+                response = await self.client.post(
+                    f"{self.base_url}/sendPhoto",
+                    data=data,
+                    files=files,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.error(f"Failed to send photo: {e}")
+            raise
+    
+    async def send_audio(
+        self,
+        chat_id: int,
+        file_path: str,
+        caption: Optional[str] = None,
+    ) -> dict:
+        """Send an audio file to a chat."""
+        try:
+            with open(file_path, "rb") as f:
+                files = {"audio": (os.path.basename(file_path), f)}
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                
+                response = await self.client.post(
+                    f"{self.base_url}/sendAudio",
+                    data=data,
+                    files=files,
+                    timeout=120.0,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.error(f"Failed to send audio: {e}")
+            raise
+    
+    async def send_file(
+        self,
+        chat_id: int,
+        file_path: str,
+        caption: Optional[str] = None,
+    ) -> dict:
+        """Smart file sender - detects type and sends appropriately."""
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        video_exts = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
+        photo_exts = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+        audio_exts = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+        
+        if ext in video_exts:
+            return await self.send_video(chat_id, file_path, caption)
+        elif ext in photo_exts:
+            return await self.send_photo(chat_id, file_path, caption)
+        elif ext in audio_exts:
+            return await self.send_audio(chat_id, file_path, caption)
+        else:
+            return await self.send_document(chat_id, file_path, caption)
     
     async def close(self):
         """Close the HTTP client."""

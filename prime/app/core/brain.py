@@ -53,6 +53,8 @@ CAPABILITIES:
 - Browse the web, search for information
 - Schedule tasks (recurring or one-time)
 - Docker, Git, services, processes
+- Receive files from user (auto-downloaded to /home/ec2-user/alfred/data/media/)
+- Send files back to user via Telegram (video, photo, audio, documents)
 
 BEHAVIOR:
 - Be concise and direct
@@ -279,6 +281,28 @@ async def think(
                     }
                 },
                 "required": ["destination", "message"]
+            }
+        },
+        {
+            "name": "send_file",
+            "description": "Send a file via Telegram. Automatically detects type (video/photo/audio/document). Use for sending processed files back to user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to send"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Optional caption for the file"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "The chat ID to send to"
+                    }
+                },
+                "required": ["file_path", "chat_id"]
             }
         }
     ]
@@ -540,6 +564,13 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
             chat_id=tool_input.get("chat_id"),
         )
     
+    elif tool_name == "send_file":
+        return await send_file_action(
+            file_path=tool_input.get("file_path"),
+            chat_id=tool_input.get("chat_id"),
+            caption=tool_input.get("caption"),
+        )
+    
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -734,3 +765,40 @@ async def send_message_action(destination: str, message: str, chat_id: int = Non
             
     except Exception as e:
         return {"error": f"Send failed: {e}", "success": False}
+
+
+async def send_file_action(file_path: str, chat_id: int, caption: str = None) -> dict:
+    """Send a file via Telegram."""
+    import os
+    
+    if not file_path:
+        return {"error": "file_path required"}
+    if not chat_id:
+        return {"error": "chat_id required"}
+    
+    if not os.path.exists(file_path):
+        return {"error": f"File not found: {file_path}"}
+    
+    try:
+        from app.services.telegram_service import telegram_service
+        
+        # Get file size for logging
+        file_size = os.path.getsize(file_path)
+        file_name = os.path.basename(file_path)
+        
+        # send_file automatically detects type
+        result = await telegram_service.send_file(
+            chat_id=chat_id,
+            file_path=file_path,
+            caption=caption,
+        )
+        
+        return {
+            "success": True,
+            "file": file_name,
+            "size_bytes": file_size,
+            "chat_id": chat_id,
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to send file: {e}", "success": False}

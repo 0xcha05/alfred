@@ -127,33 +127,52 @@ class TelegramPoller:
                 # Check for caption on media
                 if caption:
                     text = caption
-                # Check for various media types - generate descriptive text
-                elif any(key in message for key in ["video", "photo", "audio", "voice", "document", "sticker"]):
-                    media_type = next(key for key in ["video", "photo", "audio", "voice", "document", "sticker"] if key in message)
+                # Check for various media types - download and tell Alfred
+                elif any(key in message for key in ["video", "photo", "audio", "voice", "document", "sticker", "video_note", "animation"]):
+                    media_type = next(key for key in ["video", "photo", "audio", "voice", "document", "sticker", "video_note", "animation"] if key in message)
                     logger.info(f"Received {media_type} from {user_id} (no caption)")
                     
-                    # Create context text so Alfred knows media was sent
-                    media_info = message.get(media_type, {})
-                    if media_type == "photo":
-                        # Photo is a list, get the largest
-                        text = "[User sent a photo]"
-                    elif media_type == "video":
-                        duration = media_info.get("duration", "unknown")
-                        text = f"[User sent a video ({duration}s)]"
-                    elif media_type == "audio":
-                        duration = media_info.get("duration", "unknown")
-                        text = f"[User sent audio ({duration}s)]"
-                    elif media_type == "voice":
-                        duration = media_info.get("duration", "unknown")
-                        text = f"[User sent a voice message ({duration}s)]"
-                    elif media_type == "document":
-                        filename = media_info.get("file_name", "unknown")
-                        text = f"[User sent a file: {filename}]"
-                    elif media_type == "sticker":
-                        emoji = media_info.get("emoji", "")
-                        text = f"[User sent a sticker {emoji}]"
+                    # Download the media
+                    download_result = await telegram_service.download_media(message)
+                    
+                    if download_result:
+                        local_path, _ = download_result
+                        # Create context text with file path
+                        media_info = message.get(media_type, {})
+                        if media_type == "photo":
+                            text = f"[User sent a photo. Downloaded to: {local_path}]"
+                        elif media_type == "video":
+                            duration = media_info.get("duration", "unknown")
+                            text = f"[User sent a video ({duration}s). Downloaded to: {local_path}]"
+                        elif media_type == "audio":
+                            duration = media_info.get("duration", "unknown")
+                            text = f"[User sent audio ({duration}s). Downloaded to: {local_path}]"
+                        elif media_type == "voice":
+                            duration = media_info.get("duration", "unknown")
+                            text = f"[User sent a voice message ({duration}s). Downloaded to: {local_path}]"
+                        elif media_type == "document":
+                            filename = media_info.get("file_name", "unknown")
+                            text = f"[User sent a file: {filename}. Downloaded to: {local_path}]"
+                        elif media_type == "video_note":
+                            text = f"[User sent a video note. Downloaded to: {local_path}]"
+                        elif media_type == "animation":
+                            text = f"[User sent a GIF. Downloaded to: {local_path}]"
+                        else:
+                            text = f"[User sent {media_type}. Downloaded to: {local_path}]"
+                        
+                        logger.info(f"Downloaded {media_type} to {local_path}")
                     else:
-                        text = f"[User sent {media_type}]"
+                        # Failed to download - still inform about media
+                        media_info = message.get(media_type, {})
+                        if media_type == "sticker":
+                            emoji = media_info.get("emoji", "")
+                            text = f"[User sent a sticker {emoji}]"
+                        elif media_type == "video":
+                            duration = media_info.get("duration", "unknown")
+                            text = f"[User sent a video ({duration}s) - download failed]"
+                        else:
+                            text = f"[User sent {media_type} - download failed]"
+                        logger.warning(f"Failed to download {media_type}")
                 else:
                     # Unknown message type with no text
                     logger.info(f"Received message without text from {user_id}")
