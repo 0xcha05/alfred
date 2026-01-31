@@ -39,6 +39,10 @@ async def handle_command(cmd: dict) -> dict:
     
     try:
         if action == "launch":
+            # Reuse existing browser if already running
+            if browser is not None and page is not None:
+                return {"success": True, "message": "Browser already running", "mode": "reused", "url": page.url}
+            
             headless = cmd.get("headless", False)
             use_real_chrome = cmd.get("use_real_chrome", True)  # Default to real Chrome
             chrome_port = cmd.get("chrome_port", 9222)
