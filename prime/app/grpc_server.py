@@ -726,11 +726,15 @@ async def send_command(
         raise Exception(f"Daemon {daemon_id} not connected")
     
     command_id = str(uuid.uuid4())
+    # Flatten params into top-level (daemon handlers expect this)
     command = {
         "type": command_type,
+        "command_id": command_id,
         "id": command_id,
-        "params": params or {},
     }
+    # Add all params as top-level keys
+    if params:
+        command.update(params)
     
     logger.info(f"Sending command {command_id}: {command_type}")
     
