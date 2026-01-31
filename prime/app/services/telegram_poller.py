@@ -115,11 +115,28 @@ class TelegramPoller:
             user_id = message.get("from", {}).get("id")
             chat_id = message.get("chat", {}).get("id")
             text = message.get("text", "")
+            caption = message.get("caption", "")  # For media with captions
             message_id = message.get("message_id")
             
             if not is_user_allowed(user_id):
                 logger.warning(f"Unauthorized user: {user_id}")
                 return
+            
+            # Handle media messages
+            if not text:
+                # Check for caption on media
+                if caption:
+                    text = caption
+                # Check for various media types
+                elif any(key in message for key in ["video", "photo", "audio", "voice", "document", "sticker"]):
+                    media_type = next(key for key in ["video", "photo", "audio", "voice", "document", "sticker"] if key in message)
+                    logger.info(f"Received {media_type} from {user_id} (no caption)")
+                    # Skip processing media without text/caption
+                    return
+                else:
+                    # Unknown message type with no text
+                    logger.info(f"Received message without text from {user_id}")
+                    return
             
             logger.info(f"Message from {user_id}: {text[:50]}...")
             

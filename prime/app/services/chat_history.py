@@ -30,6 +30,11 @@ class ChatHistory:
     
     def add_message(self, chat_id: int, role: str, content: str, metadata: Optional[dict] = None):
         """Add a message to history."""
+        # Skip empty messages
+        if not content or not content.strip():
+            logger.debug(f"Skipping empty message for chat {chat_id}")
+            return
+        
         message = {
             "role": role,
             "content": content,
@@ -75,7 +80,11 @@ class ChatHistory:
                 for line in f:
                     if line.strip():
                         msg = json.loads(line)
-                        messages.append({"role": msg["role"], "content": msg["content"]})
+                        content = msg.get("content", "")
+                        # Skip empty messages
+                        if not content or not content.strip():
+                            continue
+                        messages.append({"role": msg["role"], "content": content})
             
             # Store in memory and return recent
             recent = messages[-count:]
@@ -135,6 +144,43 @@ class ChatHistory:
             "file_path": str(history_file),
             "in_memory": len(self.memory.get(chat_id, [])),
         }
+    
+    def clean_history(self, chat_id: int) -> int:
+        """Remove empty messages from history file. Returns count of removed messages."""
+        history_file = self._get_history_file(chat_id)
+        if not history_file.exists():
+            return 0
+        
+        try:
+            # Read all messages
+            valid_messages = []
+            removed = 0
+            with open(history_file, "r") as f:
+                for line in f:
+                    if line.strip():
+                        msg = json.loads(line)
+                        content = msg.get("content", "")
+                        if content and content.strip():
+                            valid_messages.append(msg)
+                        else:
+                            removed += 1
+            
+            # Rewrite file with only valid messages
+            if removed > 0:
+                with open(history_file, "w") as f:
+                    for msg in valid_messages:
+                        f.write(json.dumps(msg) + "\n")
+                
+                # Clear memory to reload
+                if chat_id in self.memory:
+                    del self.memory[chat_id]
+                
+                logger.info(f"Cleaned {removed} empty messages from chat {chat_id}")
+            
+            return removed
+        except Exception as e:
+            logger.error(f"Failed to clean history: {e}")
+            return 0
 
 
 # Global instance

@@ -287,18 +287,25 @@ async def think(
     messages = []
     
     # Add conversation history if available
-    # Filter to only valid roles (user/assistant) - Claude API doesn't allow "system" in messages
+    # Filter to only valid roles and non-empty content
     if conversation_history:
         for msg in conversation_history:
             role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            # Skip empty messages
+            if not content or not content.strip():
+                continue
+            
             if role in ("user", "assistant"):
-                messages.append(msg)
+                messages.append({"role": role, "content": content})
             else:
                 # Convert other roles to user (e.g., "system" messages)
-                messages.append({"role": "user", "content": msg.get("content", "")})
+                messages.append({"role": "user", "content": content})
     
-    # Add current message
-    messages.append({"role": "user", "content": message})
+    # Add current message (skip if empty)
+    if message and message.strip():
+        messages.append({"role": "user", "content": message})
     
     try:
         # Build system context with history info
