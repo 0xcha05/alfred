@@ -734,11 +734,15 @@ async def send_command(
     
     logger.info(f"Sending command {command_id}: {command_type}")
     
-    # Create pending command entry (use SHELL as placeholder for type)
+    # Create pending command entry
+    loop = asyncio.get_event_loop()
+    future = loop.create_future()
     pending = PendingCommand(
         command_id=command_id,
-        command_type=CommandType.SHELL,  # Placeholder
+        command_type=CommandType.SHELL,  # Placeholder for custom types
+        parameters=params or {},
         created_at=datetime.utcnow(),
+        future=future,
     )
     conn.pending_commands[command_id] = pending
     
@@ -746,11 +750,11 @@ async def send_command(
     await conn.command_queue.put(command)
     logger.info(f"Command {command_id} queued, waiting for response...")
     
-    # Wait for response
+    # Wait for response via future
     try:
-        result = await asyncio.wait_for(pending.response.wait(), timeout=timeout)
-        logger.info(f"Command {command_id} completed: {pending.result}")
-        return pending.result or {}
+        result = await asyncio.wait_for(pending.future, timeout=timeout)
+        logger.info(f"Command {command_id} completed: {result}")
+        return result or {}
     except asyncio.TimeoutError:
         logger.error(f"Command {command_id} timed out after {timeout}s")
         return {"error": f"Command timed out after {timeout}s"}
