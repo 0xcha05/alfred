@@ -62,6 +62,14 @@ BEHAVIOR:
 - Don't over-explain or narrate your process
 - If something fails, briefly explain and move on
 
+MULTI-STEP TASKS:
+- For complex file processing: use create_workspace first, then workspace_add_source to copy files in
+- Workspaces have: input/ (sources), steps/ (intermediates), output/ (final)
+- Combine operations into a single command when possible
+- If multiple steps are needed, output to steps/step1_xxx, steps/step2_xxx, etc.
+- Final result goes to output/, then send_file from there
+- Never overwrite source files - always output to new paths
+
 CONTEXT:
 - Messages in conversation: {total_messages}
 - History file: {history_file if history_file else "Not yet created"}"""
@@ -303,6 +311,53 @@ async def think(
                     }
                 },
                 "required": ["file_path", "chat_id"]
+            }
+        },
+        # Workspace tools for multi-step tasks
+        {
+            "name": "create_workspace",
+            "description": "Create an isolated workspace for a multi-step task. Use this when processing files with multiple operations (video editing, image processing, etc). The workspace has: input/ (source files), steps/ (intermediate results), output/ (final files). This prevents steps from overwriting each other.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_name": {
+                        "type": "string",
+                        "description": "Short name for the task (e.g., 'video_edit', 'image_resize')"
+                    }
+                },
+                "required": ["task_name"]
+            }
+        },
+        {
+            "name": "workspace_add_source",
+            "description": "Copy a source file into a workspace's input directory. Always use this before processing - never modify files in place.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The workspace ID"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the source file to copy in"
+                    }
+                },
+                "required": ["workspace_id", "file_path"]
+            }
+        },
+        {
+            "name": "workspace_get_path",
+            "description": "Get the path to a workspace directory for running commands. Returns paths to input/, steps/, and output/ directories.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The workspace ID"
+                    }
+                },
+                "required": ["workspace_id"]
             }
         }
     ]
@@ -571,6 +626,22 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
             caption=tool_input.get("caption"),
         )
     
+    elif tool_name == "create_workspace":
+        return create_workspace_action(
+            task_name=tool_input.get("task_name", "task"),
+        )
+    
+    elif tool_name == "workspace_add_source":
+        return workspace_add_source_action(
+            workspace_id=tool_input.get("workspace_id"),
+            file_path=tool_input.get("file_path"),
+        )
+    
+    elif tool_name == "workspace_get_path":
+        return workspace_get_path_action(
+            workspace_id=tool_input.get("workspace_id"),
+        )
+    
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -802,3 +873,73 @@ async def send_file_action(file_path: str, chat_id: int, caption: str = None) ->
         
     except Exception as e:
         return {"error": f"Failed to send file: {e}", "success": False}
+
+
+def create_workspace_action(task_name: str) -> dict:
+    """Create a new workspace for multi-step processing."""
+    try:
+        from app.services.workspace import workspace_manager
+        
+        workspace = workspace_manager.create(task_name)
+        
+        return {
+            "success": True,
+            "workspace_id": workspace.id,
+            "paths": {
+                "root": str(workspace.path),
+                "input": str(workspace.input_dir),
+                "output": str(workspace.output_dir),
+                "steps": str(workspace.steps_dir),
+            },
+            "instructions": "1. Add source files with workspace_add_source. 2. Run commands outputting to steps/ or output/. 3. Send final file from output/.",
+        }
+    except Exception as e:
+        return {"error": f"Failed to create workspace: {e}", "success": False}
+
+
+def workspace_add_source_action(workspace_id: str, file_path: str) -> dict:
+    """Add a source file to workspace."""
+    try:
+        from app.services.workspace import workspace_manager
+        
+        workspace = workspace_manager.get(workspace_id)
+        if not workspace:
+            return {"error": f"Workspace not found: {workspace_id}"}
+        
+        new_path = workspace.add_source(file_path)
+        
+        return {
+            "success": True,
+            "workspace_id": workspace_id,
+            "source_path": new_path,
+            "message": f"Source file copied to workspace. Use this path for processing: {new_path}",
+        }
+    except FileNotFoundError as e:
+        return {"error": str(e), "success": False}
+    except Exception as e:
+        return {"error": f"Failed to add source: {e}", "success": False}
+
+
+def workspace_get_path_action(workspace_id: str) -> dict:
+    """Get paths for a workspace."""
+    try:
+        from app.services.workspace import workspace_manager
+        
+        workspace = workspace_manager.get(workspace_id)
+        if not workspace:
+            return {"error": f"Workspace not found: {workspace_id}"}
+        
+        return {
+            "success": True,
+            "workspace_id": workspace_id,
+            "paths": {
+                "root": str(workspace.path),
+                "input": str(workspace.input_dir),
+                "output": str(workspace.output_dir),
+                "steps": str(workspace.steps_dir),
+            },
+            "source_files": workspace.source_files,
+            "steps_completed": len(workspace.steps),
+        }
+    except Exception as e:
+        return {"error": f"Failed to get workspace: {e}", "success": False}
