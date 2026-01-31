@@ -58,10 +58,11 @@ CAPABILITIES:
 - Full browser automation on daemon machines: use browser_* tools (NOT shell commands with Python)
 
 BROWSER AUTOMATION:
-- For any task requiring a real browser (JS sites, clicking, logging in): use browser_* tools on a daemon
-- NEVER try to run Playwright/Python via shell - use the dedicated browser_launch, browser_goto, browser_click, etc. tools
-- These connect to user's real Chrome with their logins
-- Flow: browser_launch(machine="macbook") → browser_goto(url) → browser_get_content() or browser_click(selector)
+- When user asks to "go to", "open", "check", or "click" on a website: USE BROWSER TOOLS, not curl/API
+- browser_launch(machine="macbook") first, then browser_goto, browser_click, browser_get_content
+- NEVER use shell commands with curl or Python for sites the user wants you to browse
+- These connect to user's real Chrome with their logins and sessions
+- If user mentions "browser", "Chrome", or "click" - always use browser_* tools
 
 BEHAVIOR:
 - Be concise and direct
@@ -903,11 +904,13 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
         params = {k: v for k, v in tool_input.items() if k != "machine"}
         
         # Find the daemon
-        from app.grpc_server import daemon_registry, send_command, resolve_daemon
+        from app.grpc_server import send_command, resolve_daemon
         
-        daemon_id = resolve_daemon(machine, daemons)
-        if not daemon_id:
-            return {"error": f"Machine '{machine}' not connected. Available: {[d.name for d in daemons]}"}
+        try:
+            daemon_id = resolve_daemon(machine)
+        except Exception as e:
+            daemon_names = [d.name for d in daemons] if daemons else []
+            return {"error": f"Machine '{machine}' not connected. Available: {daemon_names}"}
         
         # Send to daemon
         try:

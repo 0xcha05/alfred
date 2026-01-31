@@ -699,3 +699,52 @@ async def git_command(
         CommandType.GIT,
         {"args": args, "working_directory": working_directory},
     )
+
+
+async def send_command(
+    daemon_id_or_name: str,
+    command_type: str,
+    params: Dict[str, Any] = None,
+    timeout: float = 60.0,
+) -> Dict[str, Any]:
+    """
+    Send a generic command to a daemon.
+    
+    This allows sending any command type (including browser_* commands)
+    without needing to add them to the CommandType enum.
+    """
+    daemon_id = resolve_daemon(daemon_id_or_name)
+    
+    # Use string command type directly instead of enum
+    # This bypasses the CommandType enum for custom commands
+    conn = daemon_registry.connections.get(daemon_id)
+    if not conn:
+        raise Exception(f"Daemon {daemon_id} not connected")
+    
+    command_id = str(uuid.uuid4())
+    command = {
+        "type": command_type,
+        "id": command_id,
+        "params": params or {},
+    }
+    
+    # Create pending command entry (use SHELL as placeholder for type)
+    pending = PendingCommand(
+        command_id=command_id,
+        command_type=CommandType.SHELL,  # Placeholder
+        created_at=datetime.utcnow(),
+    )
+    conn.pending_commands[command_id] = pending
+    
+    # Put command in queue
+    await conn.command_queue.put(command)
+    
+    # Wait for response
+    try:
+        result = await asyncio.wait_for(pending.response.wait(), timeout=timeout)
+        return pending.result or {}
+    except asyncio.TimeoutError:
+        logger.error(f"Command {command_id} timed out after {timeout}s")
+        return {"error": f"Command timed out after {timeout}s"}
+    finally:
+        conn.pending_commands.pop(command_id, None)
