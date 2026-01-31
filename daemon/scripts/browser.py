@@ -40,14 +40,44 @@ async def handle_command(cmd: dict) -> dict:
     try:
         if action == "launch":
             headless = cmd.get("headless", False)
+            use_real_chrome = cmd.get("use_real_chrome", True)  # Default to real Chrome
+            chrome_port = cmd.get("chrome_port", 9222)
+            
             playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(headless=headless)
-            context = await browser.new_context(
-                viewport={"width": 1280, "height": 800},
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-            )
-            page = await context.new_page()
-            return {"success": True, "message": "Browser launched"}
+            
+            if use_real_chrome:
+                # Connect to user's real Chrome (must be launched with --remote-debugging-port)
+                try:
+                    browser = await playwright.chromium.connect_over_cdp(f"http://localhost:{chrome_port}")
+                    contexts = browser.contexts
+                    if contexts:
+                        context = contexts[0]
+                        pages = context.pages
+                        if pages:
+                            page = pages[0]
+                        else:
+                            page = await context.new_page()
+                    else:
+                        context = await browser.new_context()
+                        page = await context.new_page()
+                    return {"success": True, "message": f"Connected to real Chrome on port {chrome_port}", "mode": "real_chrome"}
+                except Exception as e:
+                    # Chrome not running with debug port - provide instructions
+                    return {
+                        "success": False,
+                        "error": f"Could not connect to Chrome: {e}",
+                        "instructions": f"Start Chrome with: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port={chrome_port}",
+                        "alternative": "Or use launch with use_real_chrome=false for a fresh browser"
+                    }
+            else:
+                # Use Playwright's own browser (fresh, no logins)
+                browser = await playwright.chromium.launch(headless=headless)
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                )
+                page = await context.new_page()
+                return {"success": True, "message": "Fresh browser launched", "mode": "playwright"}
         
         elif action == "goto":
             url = cmd.get("url")

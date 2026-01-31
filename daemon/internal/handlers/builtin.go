@@ -491,16 +491,29 @@ func handleManageService(params map[string]interface{}) map[string]interface{} {
 
 func handleBrowserLaunch(params map[string]interface{}) map[string]interface{} {
 	headless, _ := params["headless"].(bool)
+	useRealChrome := true // Default to real Chrome
+	if val, ok := params["use_real_chrome"].(bool); ok {
+		useRealChrome = val
+	}
 
-	result, err := browser.DefaultManager.Launch(headless)
+	result, err := browser.DefaultManager.Execute(browser.Command{
+		Action:   "launch",
+		Headless: headless,
+		UseRealChrome: useRealChrome,
+	})
 	if err != nil {
 		return map[string]interface{}{"success": false, "error": err.Error()}
 	}
-	return map[string]interface{}{
+	resp := map[string]interface{}{
 		"success": result.Success,
 		"message": result.Message,
 		"error":   result.Error,
 	}
+	if result.Error != "" && !result.Success {
+		// Include instructions if connection failed
+		resp["instructions"] = "Run: ./daemon/scripts/start_chrome.sh to start Chrome with debugging enabled"
+	}
+	return resp
 }
 
 func handleBrowserGoto(params map[string]interface{}) map[string]interface{} {

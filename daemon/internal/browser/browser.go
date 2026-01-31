@@ -26,17 +26,18 @@ type Manager struct {
 
 // Command represents a browser command
 type Command struct {
-	Action   string `json:"action"`
-	URL      string `json:"url,omitempty"`
-	Selector string `json:"selector,omitempty"`
-	Text     string `json:"text,omitempty"`
-	Script   string `json:"script,omitempty"`
-	Path     string `json:"path,omitempty"`
-	Headless bool   `json:"headless,omitempty"`
-	FullPage bool   `json:"full_page,omitempty"`
-	Timeout  int    `json:"timeout,omitempty"`
-	Amount   int    `json:"amount,omitempty"`
-	Direction string `json:"direction,omitempty"`
+	Action        string `json:"action"`
+	URL           string `json:"url,omitempty"`
+	Selector      string `json:"selector,omitempty"`
+	Text          string `json:"text,omitempty"`
+	Script        string `json:"script,omitempty"`
+	Path          string `json:"path,omitempty"`
+	Headless      bool   `json:"headless,omitempty"`
+	UseRealChrome bool   `json:"use_real_chrome,omitempty"`
+	FullPage      bool   `json:"full_page,omitempty"`
+	Timeout       int    `json:"timeout,omitempty"`
+	Amount        int    `json:"amount,omitempty"`
+	Direction     string `json:"direction,omitempty"`
 }
 
 // Result represents a browser command result

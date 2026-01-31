@@ -50,12 +50,18 @@ You can execute commands on any of these machines. Use "prime" for this server."
 CAPABILITIES:
 - Execute shell commands on any connected machine
 - Read, write, delete files
-- Browse the web, search for information
+- Browse the web (simple fetch), search for information
 - Schedule tasks (recurring or one-time)
 - Docker, Git, services, processes
 - Receive files from user (auto-downloaded to /home/ec2-user/alfred/data/media/)
 - Send files back to user via Telegram (video, photo, audio, documents)
-- Full browser automation on daemon machines (Playwright): navigate, click, type, get content, screenshots
+- Full browser automation on daemon machines: use browser_* tools (NOT shell commands with Python)
+
+BROWSER AUTOMATION:
+- For any task requiring a real browser (JS sites, clicking, logging in): use browser_* tools on a daemon
+- NEVER try to run Playwright/Python via shell - use the dedicated browser_launch, browser_goto, browser_click, etc. tools
+- These connect to user's real Chrome with their logins
+- Flow: browser_launch(machine="macbook") → browser_goto(url) → browser_get_content() or browser_click(selector)
 
 BEHAVIOR:
 - Be concise and direct
@@ -424,7 +430,7 @@ async def think(
         # Browser automation tools (run on daemon machines with browser support)
         {
             "name": "browser_launch",
-            "description": "Launch a browser on a daemon machine. Must be called before other browser commands. Use headless=false to see the browser.",
+            "description": "Launch/connect to a browser on a daemon machine. By default connects to user's real Chrome (with their logins). User must first run: ./daemon/scripts/start_chrome.sh",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -432,9 +438,13 @@ async def think(
                         "type": "string",
                         "description": "The machine to run browser on (e.g., 'macbook')"
                     },
+                    "use_real_chrome": {
+                        "type": "boolean",
+                        "description": "Connect to user's real Chrome (default true). Set false for fresh Playwright browser."
+                    },
                     "headless": {
                         "type": "boolean",
-                        "description": "Run headless (invisible). Default false to show browser."
+                        "description": "Only for fresh browser (use_real_chrome=false). Run headless."
                     }
                 },
                 "required": ["machine"]
