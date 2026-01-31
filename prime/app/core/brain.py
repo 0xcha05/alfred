@@ -392,7 +392,7 @@ async def think(
         
         # Call Claude
         response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-opus-4-5-20251101",
             max_tokens=2048,
             system=system_context,
             tools=tools,
@@ -464,7 +464,7 @@ async def think(
             messages.append({"role": "user", "content": tool_results})
             
             response = await client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-opus-4-5-20251101",
                 max_tokens=2048,
                 system=system_context,
                 tools=tools,
