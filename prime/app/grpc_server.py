@@ -757,7 +757,12 @@ async def send_command(
     # Wait for response via future
     try:
         result = await asyncio.wait_for(pending.future, timeout=timeout)
-        logger.info(f"Command {command_id} completed: {result}")
+        # Don't log base64 image data
+        if isinstance(result, dict) and "base64_image" in result:
+            logger.info(f"Command {command_id} completed: success={result.get('success')} [screenshot {len(result.get('base64_image', ''))} bytes]")
+        else:
+            log_result = str(result)[:500] if result else "None"
+            logger.info(f"Command {command_id} completed: {log_result}")
         return result or {}
     except asyncio.TimeoutError:
         logger.error(f"Command {command_id} timed out after {timeout}s")
