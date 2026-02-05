@@ -55,14 +55,26 @@ CAPABILITIES:
 - Docker, Git, services, processes
 - Receive files from user (auto-downloaded to /home/ec2-user/alfred/data/media/)
 - Send files back to user via Telegram (video, photo, audio, documents)
-- Full browser automation on daemon machines: use browser_* tools (NOT shell commands with Python)
+- Browser automation on daemon machines: use browser_* tools for web browsing
+- Computer use on GUI machines: see the screen, click, type, control any app
 
-BROWSER AUTOMATION:
-- When user asks to "go to", "open", "check", or "click" on a website: USE BROWSER TOOLS, not curl/API
-- browser_launch(machine="macbook") first, then browser_goto, browser_click, browser_get_content
-- NEVER use shell commands with curl or Python for sites the user wants you to browse
-- These connect to user's real Chrome with their logins and sessions
-- If user mentions "browser", "Chrome", or "click" - always use browser_* tools
+COMPUTER USE (for GUI machines like macbook):
+- You have the "computer" tool - it lets you see screenshots and control mouse/keyboard
+- Use it for: interacting with native apps, complex web pages, anything visual
+- Screenshot first to see what's on screen, then click/type based on coordinates
+- After each action, take another screenshot to verify the result
+- Good for: desktop apps, complex websites, visual verification, anything not easily done with CSS selectors
+
+BROWSER TOOLS (alternative for web-only tasks):
+- browser_* tools use CSS selectors - faster and cheaper (no screenshots needed)
+- Use browser_* when: you know the page structure, simple web tasks, reading page content
+- Use computer tool when: interacting with desktop apps, unreliable selectors, need to see the page visually
+
+WHEN TO USE WHICH:
+- "Open Polymarket and check odds" → browser_* tools (web content, selectors work)
+- "Open my email app" → computer tool (native macOS app)
+- "Click the red button on the page" → computer tool (visual identification needed)
+- "Get text from div.price" → browser_* tools (known selector)
 
 BEHAVIOR:
 - Be concise and direct
@@ -586,6 +598,17 @@ async def think(
         }
     ]
     
+    # Add Anthropic Computer Use tool if any GUI daemon is connected
+    # This is a schema-less tool - Claude knows how to use it natively
+    has_gui_daemon = any(d.name.lower() in ("macbook", "thinkpad", "desktop") for d in daemons)
+    if has_gui_daemon:
+        tools.append({
+            "type": "computer_20251124",
+            "name": "computer",
+            "display_width_px": 1512,
+            "display_height_px": 982,
+        })
+    
     # Build messages
     messages = []
     
@@ -614,14 +637,26 @@ async def think(
         # Build system context with history info
         system_context = get_system_context(history_file, total_messages)
         
-        # Call Claude
-        response = await client.messages.create(
-            model="claude-opus-4-5-20251101",
-            max_tokens=2048,
-            system=system_context,
-            tools=tools,
-            messages=messages,
-        )
+        # Call Claude - use beta API if computer use tool is present
+        use_computer_beta = has_gui_daemon
+        
+        if use_computer_beta:
+            response = await client.beta.messages.create(
+                model="claude-opus-4-5-20251101",
+                max_tokens=4096,
+                system=system_context,
+                tools=tools,
+                messages=messages,
+                betas=["computer-use-2025-11-24"],
+            )
+        else:
+            response = await client.messages.create(
+                model="claude-opus-4-5-20251101",
+                max_tokens=4096,
+                system=system_context,
+                tools=tools,
+                messages=messages,
+            )
         
         # Process response
         result = {
@@ -654,13 +689,29 @@ async def think(
                         result["results"].append({
                             "tool": tool_name,
                             "input": tool_input,
-                            "output": tool_result
+                            "output": {k: v for k, v in tool_result.items() if k != "base64_image"} if isinstance(tool_result, dict) else tool_result
                         })
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
-                        })
+                        
+                        # Special handling: computer tool screenshot returns image
+                        if tool_name == "computer" and isinstance(tool_result, dict) and tool_result.get("base64_image"):
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": [{
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "image/png",
+                                        "data": tool_result["base64_image"],
+                                    }
+                                }]
+                            })
+                        else:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
+                            })
                     except Exception as e:
                         logger.error(f"Tool execution failed: {e}")
                         tool_results.append({
@@ -698,13 +749,23 @@ async def think(
             messages.append({"role": "assistant", "content": assistant_content})
             messages.append({"role": "user", "content": tool_results})
             
-            response = await client.messages.create(
-                model="claude-opus-4-5-20251101",
-                max_tokens=2048,
-                system=system_context,
-                tools=tools,
-                messages=messages,
-            )
+            if use_computer_beta:
+                response = await client.beta.messages.create(
+                    model="claude-opus-4-5-20251101",
+                    max_tokens=4096,
+                    system=system_context,
+                    tools=tools,
+                    messages=messages,
+                    betas=["computer-use-2025-11-24"],
+                )
+            else:
+                response = await client.messages.create(
+                    model="claude-opus-4-5-20251101",
+                    max_tokens=4096,
+                    system=system_context,
+                    tools=tools,
+                    messages=messages,
+                )
         
         # Extract text response
         for block in response.content:
@@ -889,6 +950,35 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
             chat_id=tool_input.get("chat_id"),
             options=tool_input.get("options"),
         )
+    
+    # Computer use tool (Anthropic Computer Use API) - runs on GUI daemon machines
+    elif tool_name == "computer":
+        # Default to first GUI daemon (macbook)
+        target_daemon = None
+        for d in daemons:
+            if d.name.lower() in ("macbook", "thinkpad", "desktop"):
+                target_daemon = d.name
+                break
+        
+        if not target_daemon:
+            return {"error": "No GUI daemon connected for computer use"}
+        
+        from app.grpc_server import send_command, resolve_daemon
+        
+        logger.info(f"Computer use: action={tool_input.get('action')} on {target_daemon}")
+        
+        try:
+            daemon_id = resolve_daemon(target_daemon)
+        except Exception as e:
+            return {"error": f"Failed to resolve daemon '{target_daemon}': {e}"}
+        
+        try:
+            result = await send_command(daemon_id, "computer", tool_input)
+            logger.info(f"Computer use result: success={result.get('success') if result else 'None'}")
+            return result if result else {"error": "No response from daemon"}
+        except Exception as e:
+            logger.error(f"Computer use failed: {e}")
+            return {"error": f"Computer use failed: {e}"}
     
     # Browser automation tools - all run on daemon machines
     elif tool_name.startswith("browser_"):

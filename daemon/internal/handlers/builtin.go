@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/alfred/daemon/internal/browser"
+	"github.com/alfred/daemon/internal/computer"
 )
 
 // RegisterBuiltins registers all built-in command handlers.
@@ -43,6 +44,9 @@ func RegisterBuiltins() {
 
 	// Generic exec - runs any command
 	Register("exec", handleExec)
+
+	// Computer use (Anthropic Computer Use API)
+	Register("computer", handleComputer)
 
 	// Browser automation
 	Register("browser_launch", handleBrowserLaunch)
@@ -485,6 +489,28 @@ func handleManageService(params map[string]interface{}) map[string]interface{} {
 	}
 
 	return result
+}
+
+// Computer use handler (Anthropic Computer Use API)
+
+func handleComputer(params map[string]interface{}) map[string]interface{} {
+	result, err := computer.DefaultManager.ExecuteRaw(params)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+
+	resp := map[string]interface{}{
+		"success": result.Success,
+	}
+	if result.Error != "" {
+		resp["error"] = result.Error
+	}
+	if result.Base64Image != "" {
+		resp["base64_image"] = result.Base64Image
+		resp["display_width"] = result.DisplayWidth
+		resp["display_height"] = result.DisplayHeight
+	}
+	return resp
 }
 
 // Browser automation handlers
