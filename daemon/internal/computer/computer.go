@@ -38,14 +38,22 @@ type Command struct {
 
 // Result represents a computer use action result
 type Result struct {
-	Success       bool   `json:"success"`
-	Error         string `json:"error,omitempty"`
-	Base64Image   string `json:"base64_image,omitempty"`
-	DisplayWidth  int    `json:"display_width,omitempty"`
-	DisplayHeight int    `json:"display_height,omitempty"`
-	ScreenWidth   int    `json:"screen_width,omitempty"`
-	ScreenHeight  int    `json:"screen_height,omitempty"`
-	Ready         bool   `json:"ready,omitempty"`
+	Success         bool    `json:"success"`
+	Error           string  `json:"error,omitempty"`
+	Base64Image     string  `json:"base64_image,omitempty"`
+	DisplayWidth    int     `json:"display_width,omitempty"`
+	DisplayHeight   int     `json:"display_height,omitempty"`
+	ScreenWidth     int     `json:"screen_width,omitempty"`
+	ScreenHeight    int     `json:"screen_height,omitempty"`
+	ApiWidth        int     `json:"api_width,omitempty"`
+	ApiHeight       int     `json:"api_height,omitempty"`
+	ScaleX          float64 `json:"scale_x,omitempty"`
+	ScaleY          float64 `json:"scale_y,omitempty"`
+	ScreenshotError string  `json:"screenshot_error,omitempty"`
+	HasCliclick     bool    `json:"has_cliclick,omitempty"`
+	Ready           bool    `json:"ready,omitempty"`
+	X               int     `json:"x,omitempty"`
+	Y               int     `json:"y,omitempty"`
 }
 
 // Global manager instance
@@ -201,40 +209,45 @@ func (m *Manager) sendCommand(cmd Command) (*Result, error) {
 	return &result, nil
 }
 
-// ExecuteRaw runs a command from a raw map (for handler integration)
+// ExecuteRaw runs a command from a raw map (for handler integration).
+// Instead of mapping individual fields, we forward the entire params map
+// as JSON to the Python subprocess. This ensures ALL Anthropic fields
+// (action, text, coordinate, scroll_direction, scroll_amount, etc.)
+// are passed through without needing Go struct mapping.
 func (m *Manager) ExecuteRaw(params map[string]interface{}) (*Result, error) {
-	cmd := Command{}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	if action, ok := params["action"].(string); ok {
-		cmd.Action = action
-	}
-	if text, ok := params["text"].(string); ok {
-		cmd.Text = text
-	}
-	if key, ok := params["key"].(string); ok {
-		cmd.Key = key
-	}
-	if direction, ok := params["direction"].(string); ok {
-		cmd.Direction = direction
-	}
-	if amount, ok := params["amount"].(float64); ok {
-		cmd.Amount = int(amount)
-	}
-	if duration, ok := params["duration"].(float64); ok {
-		cmd.Duration = duration
+	// Auto-start if not running
+	if !m.running {
+		m.mu.Unlock()
+		if err := m.Start(); err != nil {
+			return nil, err
+		}
+		m.mu.Lock()
 	}
 
-	// Handle coordinate arrays
-	if coord, ok := params["coordinate"].([]interface{}); ok && len(coord) >= 2 {
-		x, _ := coord[0].(float64)
-		y, _ := coord[1].(float64)
-		cmd.Coordinate = []int{int(x), int(y)}
-	}
-	if coord, ok := params["start_coordinate"].([]interface{}); ok && len(coord) >= 2 {
-		x, _ := coord[0].(float64)
-		y, _ := coord[1].(float64)
-		cmd.StartCoordinate = []int{int(x), int(y)}
+	// Marshal the raw params directly - Python handles all field parsing
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode params: %w", err)
 	}
 
-	return m.Execute(cmd)
+	log.Printf("[computer] Sending raw params: action=%v", params["action"])
+
+	if _, err := m.stdin.Write(append(data, '\n')); err != nil {
+		return nil, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	line, err := m.stdout.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var result Result
+	if err := json.Unmarshal([]byte(line), &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
 }

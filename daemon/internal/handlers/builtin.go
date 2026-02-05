@@ -499,6 +499,7 @@ func handleComputer(params map[string]interface{}) map[string]interface{} {
 		return map[string]interface{}{"success": false, "error": err.Error()}
 	}
 
+	// Pass through ALL fields from the Python result
 	resp := map[string]interface{}{
 		"success": result.Success,
 	}
@@ -507,8 +508,18 @@ func handleComputer(params map[string]interface{}) map[string]interface{} {
 	}
 	if result.Base64Image != "" {
 		resp["base64_image"] = result.Base64Image
+	}
+	if result.DisplayWidth > 0 {
 		resp["display_width"] = result.DisplayWidth
+	}
+	if result.DisplayHeight > 0 {
 		resp["display_height"] = result.DisplayHeight
+	}
+	if result.ScreenWidth > 0 {
+		resp["screen_width"] = result.ScreenWidth
+	}
+	if result.ScreenHeight > 0 {
+		resp["screen_height"] = result.ScreenHeight
 	}
 	return resp
 }

@@ -602,11 +602,13 @@ async def think(
     # This is a schema-less tool - Claude knows how to use it natively
     has_gui_daemon = any(d.name.lower() in ("macbook", "thinkpad", "desktop") for d in daemons)
     if has_gui_daemon:
+        # Dimensions MUST match what computer.py uses for screenshot resizing (API_WIDTH x API_HEIGHT)
+        # Anthropic recommends 1024x768 - Claude sends coordinates in this space
         tools.append({
             "type": "computer_20251124",
             "name": "computer",
-            "display_width_px": 1512,
-            "display_height_px": 982,
+            "display_width_px": 1024,
+            "display_height_px": 768,
         })
     
     # Build messages
@@ -697,19 +699,30 @@ async def think(
                             "output": {k: v for k, v in tool_result.items() if k != "base64_image"} if isinstance(tool_result, dict) else tool_result
                         })
                         
-                        # Special handling: computer tool screenshot returns image
+                        # Special handling: computer tool returns screenshot image
+                        # Per Anthropic spec, send both text result AND image so Claude can see
                         if tool_name == "computer" and isinstance(tool_result, dict) and tool_result.get("base64_image"):
+                            content_blocks = []
+                            # Add text result first (without the base64 data)
+                            text_result = {k: v for k, v in tool_result.items() if k != "base64_image"}
+                            if text_result:
+                                content_blocks.append({
+                                    "type": "text",
+                                    "text": json.dumps(text_result),
+                                })
+                            # Add screenshot image
+                            content_blocks.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": tool_result["base64_image"],
+                                }
+                            })
                             tool_results.append({
                                 "type": "tool_result",
                                 "tool_use_id": tool_id,
-                                "content": [{
-                                    "type": "image",
-                                    "source": {
-                                        "type": "base64",
-                                        "media_type": "image/png",
-                                        "data": tool_result["base64_image"],
-                                    }
-                                }]
+                                "content": content_blocks,
                             })
                         else:
                             tool_results.append({
