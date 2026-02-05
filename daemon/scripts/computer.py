@@ -113,25 +113,43 @@ def take_screenshot():
 def click_at(x, y, button="left", click_count=1):
     """Click at screen coordinates."""
     screen_x, screen_y = scale_coordinates_to_screen(x, y)
+    log(f"click_at: ({x},{y}) -> screen ({screen_x},{screen_y}) button={button} count={click_count}")
 
     if has_command("cliclick"):
-        # cliclick is more reliable on macOS
         click_map = {
             ("left", 1): "c",
             ("left", 2): "dc",
             ("left", 3): "tc",
             ("right", 1): "rc",
-            ("middle", 1): "kc",  # cliclick doesn't have middle, fake it
         }
         action = click_map.get((button, click_count), "c")
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["cliclick", f"{action}:{screen_x},{screen_y}"],
-                timeout=5, check=True
+                timeout=5, capture_output=True, text=True
             )
-            return True, None
+            if result.returncode == 0:
+                return True, None
+            log(f"cliclick failed: {result.stderr}")
         except Exception as e:
-            log(f"cliclick failed: {e}, trying pyautogui")
+            log(f"cliclick error: {e}")
+
+    # Fallback: AppleScript for clicking
+    try:
+        script = f'''
+        tell application "System Events"
+            click at {{{screen_x}, {screen_y}}}
+        end tell
+        '''
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            timeout=5, capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return True, None
+        log(f"AppleScript click failed: {result.stderr}")
+    except Exception as e:
+        log(f"AppleScript click error: {e}")
 
     # Fallback: pyautogui
     try:
@@ -145,22 +163,25 @@ def click_at(x, y, button="left", click_count=1):
             pyautogui.middleClick(screen_x, screen_y)
         return True, None
     except Exception as e:
-        return False, f"Click failed: {e}"
+        return False, f"Click failed with all methods: {e}"
 
 
 def move_mouse(x, y):
     """Move cursor to coordinates."""
     screen_x, screen_y = scale_coordinates_to_screen(x, y)
+    log(f"move_mouse: ({x},{y}) -> screen ({screen_x},{screen_y})")
 
     if has_command("cliclick"):
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["cliclick", f"m:{screen_x},{screen_y}"],
-                timeout=5, check=True
+                timeout=5, capture_output=True, text=True
             )
-            return True, None
-        except Exception:
-            pass
+            if result.returncode == 0:
+                return True, None
+            log(f"cliclick move failed: {result.stderr}")
+        except Exception as e:
+            log(f"cliclick move error: {e}")
 
     try:
         import pyautogui
@@ -173,77 +194,126 @@ def move_mouse(x, y):
 
 def type_text(text):
     """Type text string."""
+    if not text:
+        return False, "No text to type"
+    
+    log(f"type_text: '{text[:50]}{'...' if len(text) > 50 else ''}'")
+    
+    # AppleScript is most reliable for typing on macOS
+    try:
+        # Escape quotes for AppleScript
+        escaped = text.replace('\\', '\\\\').replace('"', '\\"')
+        script = f'tell application "System Events" to keystroke "{escaped}"'
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            timeout=10, capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return True, None
+        log(f"AppleScript type failed: {result.stderr}")
+    except Exception as e:
+        log(f"AppleScript type error: {e}")
+    
+    # Fallback: cliclick
     if has_command("cliclick"):
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["cliclick", f"t:{text}"],
-                timeout=10, check=True
+                timeout=10, capture_output=True, text=True
             )
-            return True, None
-        except Exception:
-            pass
+            if result.returncode == 0:
+                return True, None
+            log(f"cliclick type failed: {result.stderr}")
+        except Exception as e:
+            log(f"cliclick type error: {e}")
 
+    # Fallback: pyautogui
     try:
         import pyautogui
         pyautogui.FAILSAFE = False
         pyautogui.write(text, interval=0.02)
         return True, None
     except Exception as e:
-        return False, f"Type failed: {e}"
+        return False, f"Type failed with all methods: {e}"
 
 
 def press_key(key_combo):
-    """Press key or key combination (e.g., 'Return', 'ctrl+s', 'cmd+a')."""
-    if has_command("cliclick"):
-        # Map common key names to cliclick format
-        key_map = {
-            "return": "return", "enter": "return",
-            "tab": "tab", "escape": "esc", "esc": "esc",
-            "space": "space", "delete": "delete", "backspace": "delete",
-            "up": "arrow-up", "down": "arrow-down",
-            "left": "arrow-left", "right": "arrow-right",
-            "home": "home", "end": "end",
-            "page_up": "page-up", "page_down": "page-down",
-        }
-        modifier_map = {
-            "ctrl": "ctrl", "control": "ctrl",
-            "alt": "alt", "option": "alt",
-            "cmd": "cmd", "command": "cmd", "super": "cmd",
-            "shift": "shift",
-        }
-
-        parts = [p.strip().lower() for p in key_combo.split("+")]
-
-        if len(parts) == 1:
-            mapped = key_map.get(parts[0], parts[0])
-            try:
-                subprocess.run(["cliclick", f"kp:{mapped}"], timeout=5, check=True)
-                return True, None
-            except Exception:
-                pass
+    """Press key or key combination (e.g., 'Return', 'ctrl+s', 'cmd+a', 'space')."""
+    if not key_combo:
+        return False, "No key specified"
+    
+    log(f"press_key called with: '{key_combo}'")
+    
+    # Use AppleScript as primary method - most reliable on macOS
+    # Map key names to AppleScript key codes / names
+    applescript_key_map = {
+        "return": (36, None), "enter": (36, None),
+        "tab": (48, None),
+        "escape": (53, None), "esc": (53, None),
+        "space": (49, None),
+        "delete": (51, None), "backspace": (51, None),
+        "up": (126, None), "down": (125, None),
+        "left": (123, None), "right": (124, None),
+        "home": (115, None), "end": (119, None),
+        "page_up": (116, None), "page_down": (121, None),
+        "f1": (122, None), "f2": (120, None), "f3": (99, None),
+        "f4": (118, None), "f5": (96, None), "f6": (97, None),
+        "f7": (98, None), "f8": (100, None), "f9": (101, None),
+        "f10": (109, None), "f11": (103, None), "f12": (111, None),
+    }
+    
+    applescript_modifier_map = {
+        "ctrl": "control down", "control": "control down",
+        "alt": "option down", "option": "option down",
+        "cmd": "command down", "command": "command down", "super": "command down",
+        "shift": "shift down",
+    }
+    
+    parts = [p.strip().lower() for p in key_combo.split("+")]
+    
+    # Separate modifiers from the actual key
+    modifiers = []
+    key = None
+    for p in parts:
+        if p in applescript_modifier_map:
+            modifiers.append(applescript_modifier_map[p])
         else:
-            # Key combo: hold modifiers, press key
-            modifiers = []
-            key = parts[-1]
-            for p in parts[:-1]:
-                m = modifier_map.get(p)
-                if m:
-                    modifiers.append(m)
-
-            mapped_key = key_map.get(key, key)
-            combo = ",".join(modifiers) + ":" + mapped_key if modifiers else mapped_key
-            try:
-                subprocess.run(["cliclick", f"kp:{combo}"], timeout=5, check=True)
-                return True, None
-            except Exception:
-                pass
-
+            key = p
+    
+    if not key:
+        return False, f"No key found in combo: {key_combo}"
+    
+    modifier_str = " using {" + ", ".join(modifiers) + "}" if modifiers else ""
+    
+    # Check if it's a special key (use key code) or a character (use keystroke)
+    if key in applescript_key_map:
+        key_code, _ = applescript_key_map[key]
+        script = f'tell application "System Events" to key code {key_code}{modifier_str}'
+    elif len(key) == 1:
+        # Single character
+        script = f'tell application "System Events" to keystroke "{key}"{modifier_str}'
+    else:
+        # Try as keystroke anyway
+        script = f'tell application "System Events" to keystroke "{key}"{modifier_str}'
+    
+    try:
+        log(f"AppleScript: {script}")
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            timeout=5, capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return True, None
+        else:
+            log(f"AppleScript failed: {result.stderr}")
+    except Exception as e:
+        log(f"AppleScript error: {e}")
+    
     # Fallback: pyautogui
     try:
         import pyautogui
         pyautogui.FAILSAFE = False
 
-        parts = [p.strip().lower() for p in key_combo.split("+")]
         pyautogui_map = {
             "ctrl": "ctrl", "control": "ctrl",
             "alt": "alt", "option": "alt",
