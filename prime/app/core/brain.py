@@ -676,7 +676,12 @@ async def think(
                     tool_input = block.input
                     tool_id = block.id
                     
-                    logger.info(f"Executing tool: {tool_name} with {tool_input}")
+                    # Don't log base64 image data
+                    if tool_name == "computer":
+                        logger.info(f"Executing tool: {tool_name} action={tool_input.get('action')} coordinate={tool_input.get('coordinate')}")
+                    else:
+                        log_input = {k: v for k, v in tool_input.items() if k != "base64_image"} if isinstance(tool_input, dict) else tool_input
+                        logger.info(f"Executing tool: {tool_name} with {log_input}")
                     
                     # Execute the tool
                     try:
@@ -1009,7 +1014,7 @@ async def execute_tool(tool_name: str, tool_input: dict, daemons: list) -> dict:
         try:
             logger.info(f"Sending {browser_action} to {daemon_id}...")
             result = await send_command(daemon_id, browser_action, params)
-            logger.info(f"Browser result: {result}")
+            logger.info(f"Browser result: success={result.get('success') if result else 'None'}")
             return result if result else {"error": "No response from daemon"}
         except Exception as e:
             logger.error(f"Browser command failed: {e}")
