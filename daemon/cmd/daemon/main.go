@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alfred/daemon/internal/config"
-	"github.com/alfred/daemon/internal/emitters"
-	"github.com/alfred/daemon/internal/handlers"
-	"github.com/alfred/daemon/internal/primeclient"
+	"github.com/ultron/daemon/internal/config"
+	"github.com/ultron/daemon/internal/emitters"
+	"github.com/ultron/daemon/internal/handlers"
+	"github.com/ultron/daemon/internal/primeclient"
 )
 
 func main() {
@@ -25,14 +25,14 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	log.Printf("🤖 Alfred Daemon starting...")
+	log.Printf("🤖 Ultron Daemon starting...")
 	log.Printf("   Name: %s", cfg.Name)
 	log.Printf("   Hostname: %s", cfg.Hostname)
 	log.Printf("   Capabilities: %v", cfg.Capabilities)
 	log.Printf("   Prime address: %s", cfg.PrimeAddress)
 	if cfg.IsSoulDaemon {
-		log.Printf("   Mode: SOUL DAEMON (can modify Alfred)")
-		log.Printf("   Alfred root: %s", cfg.AlfredRoot)
+		log.Printf("   Mode: SOUL DAEMON (can modify Ultron)")
+		log.Printf("   Ultron root: %s", cfg.UltronRoot)
 	}
 
 	// Register built-in command handlers
@@ -47,7 +47,7 @@ func main() {
 		Hostname:        cfg.Hostname,
 		Capabilities:    cfg.Capabilities,
 		IsSoulDaemon:    cfg.IsSoulDaemon,
-		AlfredRoot:      cfg.AlfredRoot,
+		UltronRoot:      cfg.UltronRoot,
 	})
 
 	// Set up emitters for proactive events

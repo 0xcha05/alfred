@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ActionType(str, Enum):
-    """Supported action types - Alfred has FULL control."""
+    """Supported action types - Ultron has FULL control."""
     # Core execution
     SHELL = "shell"
     SHELL_ROOT = "shell_root"  # sudo/elevated
@@ -60,7 +60,7 @@ class ActionType(str, Enum):
     # Meta
     STATUS = "status"
     HELP = "help"
-    INFO = "info"  # Questions about Alfred itself
+    INFO = "info"  # Questions about Ultron itself
     MACHINES = "machines"  # List connected machines
     UNKNOWN = "unknown"
 
@@ -75,7 +75,7 @@ class ParsedIntent(BaseModel):
     confidence: float = 1.0
 
 
-SYSTEM_PROMPT = """You are Alfred, a personal AI agent with FULL control over all connected machines, including the ability to modify yourself.
+SYSTEM_PROMPT = """You are Ultron, a personal AI agent with FULL control over all connected machines, including the ability to modify yourself.
 
 Parse user messages into structured intents. Output ONLY valid JSON.
 
@@ -137,7 +137,7 @@ Parse user messages into structured intents. Output ONLY valid JSON.
 |--------|-------------|------------|
 | status | Check running tasks | (none) |
 | help | Show help | (none) |
-| info | Questions about Alfred himself | (none) |
+| info | Questions about Ultron himself | (none) |
 | machines | List connected machines | (none) |
 
 ## Output Format
@@ -150,7 +150,7 @@ Parse user messages into structured intents. Output ONLY valid JSON.
 
 1. **Full control**: I can do ANYTHING - commands, files, services, even modify my own code.
 2. **Target machine**: Use "on my macbook", "on server", "on prime/yourself" for self-modification. null = default.
-3. **Self-modification**: When asked to improve/modify Alfred, use modify_code, create_code, rebuild.
+3. **Self-modification**: When asked to improve/modify Ultron, use modify_code, create_code, rebuild.
 4. **confirmation_required=true** for: destructive ops (rm -rf, kill), sudo, self-modification, production changes.
 5. **confidence**: 0.9+ clear, 0.7-0.9 inferred, <0.7 vague.
 
@@ -174,7 +174,7 @@ User: "update your dependencies" → {"action": "update_deps", "parameters": {"c
 
 # Quick pattern matching for common commands (fallback if API unavailable)
 QUICK_PATTERNS = [
-    # Meta - questions about Alfred itself (no daemon needed)
+    # Meta - questions about Ultron itself (no daemon needed)
     (r"^(help|hi|hello|hey)\b", ActionType.HELP, {}),
     (r"^status\b", ActionType.STATUS, {}),
     (r"^(what'?s running|running tasks)\b", ActionType.STATUS, {}),
@@ -479,7 +479,7 @@ async def format_response(intent: ParsedIntent, result: Any) -> str:
         return str(result)
     
     elif intent.action == ActionType.HELP:
-        return """👋 **I'm Alfred, your personal AI agent with FULL control.**
+        return """👋 **I'm Ultron, your personal AI agent with FULL control.**
 
 **I can do ANYTHING on your machines:**
 

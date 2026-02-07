@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Alfred CLI - Direct terminal interface to Alfred Prime."""
+"""Ultron CLI - Direct terminal interface to Ultron Prime."""
 
 import argparse
 import asyncio
@@ -11,11 +11,11 @@ from typing import Optional
 import httpx
 
 # Default Prime URL
-DEFAULT_PRIME_URL = os.environ.get("ALFRED_PRIME_URL", "http://localhost:8000")
+DEFAULT_PRIME_URL = os.environ.get("ULTRON_PRIME_URL", "http://localhost:8000")
 
 
-class AlfredCLI:
-    """CLI client for Alfred Prime."""
+class UltronCLI:
+    """CLI client for Ultron Prime."""
     
     def __init__(self, prime_url: str = DEFAULT_PRIME_URL):
         self.prime_url = prime_url.rstrip("/")
@@ -56,21 +56,21 @@ class AlfredCLI:
         return response.json()
 
 
-def cmd_health(args, cli: AlfredCLI):
+def cmd_health(args, cli: UltronCLI):
     """Check if Prime is healthy."""
     try:
         result = cli.health()
-        print(f"✓ Alfred Prime is {result.get('status', 'unknown')}")
+        print(f"✓ Ultron Prime is {result.get('status', 'unknown')}")
         print(f"  Version: {result.get('version', 'unknown')}")
     except httpx.ConnectError:
-        print(f"✗ Cannot connect to Alfred Prime at {cli.prime_url}")
+        print(f"✗ Cannot connect to Ultron Prime at {cli.prime_url}")
         sys.exit(1)
     except Exception as e:
         print(f"✗ Error: {e}")
         sys.exit(1)
 
 
-def cmd_machines(args, cli: AlfredCLI):
+def cmd_machines(args, cli: UltronCLI):
     """List connected daemons."""
     try:
         result = cli.list_daemons()
@@ -93,7 +93,7 @@ def cmd_machines(args, cli: AlfredCLI):
         sys.exit(1)
 
 
-def cmd_execute(args, cli: AlfredCLI):
+def cmd_execute(args, cli: UltronCLI):
     """Execute a command."""
     message = " ".join(args.command)
     
@@ -109,7 +109,7 @@ def cmd_execute(args, cli: AlfredCLI):
         sys.exit(1)
 
 
-def cmd_status(args, cli: AlfredCLI):
+def cmd_status(args, cli: UltronCLI):
     """Show status of running tasks."""
     try:
         result = cli.status()
@@ -119,9 +119,9 @@ def cmd_status(args, cli: AlfredCLI):
         sys.exit(1)
 
 
-def cmd_interactive(args, cli: AlfredCLI):
+def cmd_interactive(args, cli: UltronCLI):
     """Start interactive mode."""
-    print("Alfred CLI - Interactive Mode")
+    print("Ultron CLI - Interactive Mode")
     print("Type 'exit' or 'quit' to exit, 'help' for commands")
     print()
     
@@ -132,7 +132,7 @@ def cmd_interactive(args, cli: AlfredCLI):
     
     while True:
         try:
-            line = input("alfred> ").strip()
+            line = input("ultron> ").strip()
             
             if not line:
                 continue
@@ -192,22 +192,22 @@ Or type any command to execute:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Alfred CLI - Command your infrastructure",
+        description="Ultron CLI - Command your infrastructure",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  alfred "run the tests"         Execute a command
-  alfred machines                List connected daemons
-  alfred status                  Show running tasks
-  alfred -i                      Start interactive mode
-  alfred --url http://host:8000  Use different Prime URL
+  ultron "run the tests"         Execute a command
+  ultron machines                List connected daemons
+  ultron status                  Show running tasks
+  ultron -i                      Start interactive mode
+  ultron --url http://host:8000  Use different Prime URL
 """,
     )
     
     parser.add_argument(
         "--url",
         default=DEFAULT_PRIME_URL,
-        help=f"Alfred Prime URL (default: {DEFAULT_PRIME_URL})",
+        help=f"Ultron Prime URL (default: {DEFAULT_PRIME_URL})",
     )
     parser.add_argument(
         "-i", "--interactive",
@@ -221,7 +221,7 @@ Examples:
     )
     
     args = parser.parse_args()
-    cli = AlfredCLI(args.url)
+    cli = UltronCLI(args.url)
     
     # Check which command to run
     if args.interactive:

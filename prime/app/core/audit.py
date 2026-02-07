@@ -1,4 +1,4 @@
-"""Audit logging for all Alfred actions."""
+"""Audit logging for all Ultron actions."""
 
 import logging
 from datetime import datetime

@@ -60,7 +60,7 @@ class DaemonConnection:
     hostname: str
     capabilities: list[str]
     is_soul_daemon: bool
-    alfred_root: Optional[str]
+    ultron_root: Optional[str]
     connected_at: datetime
     last_seen: datetime
     status: str
@@ -96,7 +96,7 @@ class DaemonRegistry:
         hostname: str,
         capabilities: list[str],
         is_soul_daemon: bool = False,
-        alfred_root: Optional[str] = None,
+        ultron_root: Optional[str] = None,
     ) -> Optional[DaemonConnection]:
         """Register a new daemon connection."""
         
@@ -115,7 +115,7 @@ class DaemonRegistry:
                 hostname=hostname,
                 capabilities=capabilities,
                 is_soul_daemon=is_soul_daemon,
-                alfred_root=alfred_root,
+                ultron_root=ultron_root,
                 connected_at=datetime.utcnow(),
                 last_seen=datetime.utcnow(),
                 status="connected",
@@ -135,7 +135,7 @@ class DaemonRegistry:
             
             logger.info(f"Daemon registered: {daemon_id} ({name}@{hostname})")
             if is_soul_daemon:
-                logger.info(f"  -> Soul daemon (can modify Alfred at {alfred_root})")
+                logger.info(f"  -> Soul daemon (can modify Ultron at {ultron_root})")
             
             return conn
     
@@ -359,7 +359,7 @@ class PrimeServicer:
                         hostname=message.get("hostname", "unknown"),
                         capabilities=message.get("capabilities", []),
                         is_soul_daemon=message.get("is_soul_daemon", False),
-                        alfred_root=message.get("alfred_root"),
+                        ultron_root=message.get("ultron_root"),
                     )
                     
                     if daemon_conn:
@@ -486,7 +486,7 @@ async def handle_daemon_connection(
                     hostname=message.get("hostname", "unknown"),
                     capabilities=message.get("capabilities", []),
                     is_soul_daemon=message.get("is_soul_daemon", False),
-                    alfred_root=message.get("alfred_root"),
+                    ultron_root=message.get("ultron_root"),
                 )
                 
                 if daemon_conn:

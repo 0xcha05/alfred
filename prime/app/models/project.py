@@ -7,7 +7,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class Project(Base, TimestampMixin):
-    """Represents a project registered with Alfred."""
+    """Represents a project registered with Ultron."""
     
     __tablename__ = "projects"
     

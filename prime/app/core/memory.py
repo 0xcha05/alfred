@@ -47,7 +47,7 @@ class TaskHistory(BaseModel):
 
 class MemoryStore:
     """
-    Memory store for Alfred's persistent context.
+    Memory store for Ultron's persistent context.
     
     Currently in-memory, will be backed by PostgreSQL.
     """

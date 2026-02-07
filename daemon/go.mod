@@ -1,4 +1,4 @@
-module github.com/alfred/daemon
+module github.com/ultron/daemon
 
 go 1.22
 

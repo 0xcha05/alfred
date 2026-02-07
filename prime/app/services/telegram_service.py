@@ -11,7 +11,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Directory to store downloaded media
-MEDIA_DIR = Path("/home/ec2-user/alfred/data/media")
+MEDIA_DIR = Path("/home/ec2-user/ultron/data/media")
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 

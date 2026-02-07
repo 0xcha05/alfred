@@ -40,7 +40,7 @@ class TaskRouter:
         # Check for "prime", "yourself", "self" targeting
         if intent.target_machine:
             target_lower = intent.target_machine.lower()
-            if target_lower in ("prime", "yourself", "self", "alfred", "soul"):
+            if target_lower in ("prime", "yourself", "self", "ultron", "soul"):
                 soul_daemon = self._get_soul_daemon()
                 if soul_daemon:
                     logger.debug(f"Explicit soul daemon targeting: {soul_daemon}")

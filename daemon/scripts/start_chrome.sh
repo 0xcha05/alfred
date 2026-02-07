@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start a browser with remote debugging for Alfred
+# Start a browser with remote debugging for Ultron
 # Uses Firefox by default so you can keep using Chrome normally
 
 PORT=${1:-9222}
@@ -13,14 +13,14 @@ if [ "$BROWSER" = "firefox" ]; then
         exit 1
     fi
     
-    # Create a fresh profile for Alfred
-    ALFRED_PROFILE="/tmp/alfred-firefox-profile"
-    mkdir -p "$ALFRED_PROFILE"
+    # Create a fresh profile for Ultron
+    ULTRON_PROFILE="/tmp/ultron-firefox-profile"
+    mkdir -p "$ULTRON_PROFILE"
     
-    echo "🦊 Starting Firefox for Alfred on port $PORT..."
+    echo "🦊 Starting Firefox for Ultron on port $PORT..."
     echo ""
     echo "   You can keep using Chrome normally!"
-    echo "   Alfred will control this Firefox window."
+    echo "   Ultron will control this Firefox window."
     echo ""
     echo "⚠️  Keep this terminal open while using browser automation"
     echo ""
@@ -28,7 +28,7 @@ if [ "$BROWSER" = "firefox" ]; then
     # Firefox uses --remote-debugging-port
     "$FIREFOX_PATH" \
         --remote-debugging-port=$PORT \
-        --profile "$ALFRED_PROFILE" \
+        --profile "$ULTRON_PROFILE" \
         --new-instance \
         2>/dev/null
     
@@ -54,10 +54,10 @@ else
         fi
     fi
     
-    TEMP_PROFILE="/tmp/alfred-chrome-profile"
+    TEMP_PROFILE="/tmp/ultron-chrome-profile"
     mkdir -p "$TEMP_PROFILE"
     
-    echo "Starting Chrome for Alfred on port $PORT..."
+    echo "Starting Chrome for Ultron on port $PORT..."
     echo "⚠️  Keep this terminal open"
     echo ""
     

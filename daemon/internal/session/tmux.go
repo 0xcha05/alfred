@@ -33,7 +33,7 @@ type Session struct {
 
 // NewManager creates a new session manager
 func NewManager() *Manager {
-	logDir := filepath.Join(os.TempDir(), "alfred-sessions")
+	logDir := filepath.Join(os.TempDir(), "ultron-sessions")
 	os.MkdirAll(logDir, 0755)
 
 	return &Manager{
@@ -48,7 +48,7 @@ func (m *Manager) Create(name, command, workingDir string) (*Session, error) {
 	defer m.mu.Unlock()
 
 	// Generate session ID
-	sessionID := fmt.Sprintf("alfred-%s-%d", name, time.Now().UnixNano())
+	sessionID := fmt.Sprintf("ultron-%s-%d", name, time.Now().UnixNano())
 
 	// Log file for capturing output
 	logFile := filepath.Join(m.logDir, sessionID+".log")
@@ -125,7 +125,7 @@ func (m *Manager) refreshFromTmux() {
 	activeSessions := make(map[string]bool)
 	for _, line := range strings.Split(string(output), "\n") {
 		line = strings.TrimSpace(line)
-		if line != "" && strings.HasPrefix(line, "alfred-") {
+		if line != "" && strings.HasPrefix(line, "ultron-") {
 			activeSessions[line] = true
 		}
 	}

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package alfred.daemon;
+package ultron.daemon;
 
-option go_package = "github.com/alfred/daemon/pkg/proto";
+option go_package = "github.com/ultron/daemon/pkg/proto";
 
 // =============================================================================
 // PrimeService - Hosted by Prime, daemons connect TO Prime
@@ -34,7 +34,7 @@ message DaemonRegistration {
     string hostname = 3;
     repeated string capabilities = 4;
     bool is_soul_daemon = 5;
-    string alfred_root = 6;
+    string ultron_root = 6;
 }
 
 // Heartbeat from daemon
@@ -285,22 +285,22 @@ service DaemonService {
     // SELF-MODIFICATION (Soul Daemon)
     // ============================================
     
-    // Modify Alfred's own code
+    // Modify Ultron's own code
     rpc ModifyCode(ModifyCodeRequest) returns (ModifyCodeResponse);
     
-    // Create new files in Alfred
+    // Create new files in Ultron
     rpc CreateCode(CreateCodeRequest) returns (CreateCodeResponse);
     
-    // Rebuild and restart Alfred components
-    rpc RebuildAlfred(RebuildRequest) returns (stream ShellResponse);
-    rpc RestartAlfred(RestartRequest) returns (RestartResponse);
+    // Rebuild and restart Ultron components
+    rpc RebuildUltron(RebuildRequest) returns (stream ShellResponse);
+    rpc RestartUltron(RestartRequest) returns (RestartResponse);
     
     // Backup and restore
     rpc CreateBackup(BackupRequest) returns (BackupResponse);
     rpc RestoreBackup(RestoreRequest) returns (RestoreResponse);
     rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
     
-    // Update Alfred dependencies
+    // Update Ultron dependencies
     rpc UpdateDependencies(UpdateDepsRequest) returns (stream ShellResponse);
     
     // ============================================
@@ -329,7 +329,7 @@ message RegisterRequest {
     string hostname = 3;
     repeated string capabilities = 4;
     bool is_soul_daemon = 5;  // True if this is the daemon on Prime's server
-    string alfred_root = 6;   // Root directory of Alfred installation
+    string ultron_root = 6;   // Root directory of Ultron installation
 }
 
 message RegisterResponse {

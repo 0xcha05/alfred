@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// PrimeClient handles communication with Alfred Prime
+// PrimeClient handles communication with Ultron Prime
 type PrimeClient struct {
 	baseURL         string
 	registrationKey string
@@ -25,7 +25,7 @@ type RegistrationRequest struct {
 	Capabilities []string `json:"capabilities"`
 	GRPCAddress  string   `json:"grpc_address"`
 	IsSoulDaemon bool     `json:"is_soul_daemon"`
-	AlfredRoot   string   `json:"alfred_root,omitempty"`
+	UltronRoot   string   `json:"ultron_root,omitempty"`
 }
 
 // RegistrationResponse is received from Prime after registration
@@ -45,7 +45,7 @@ func NewPrimeClient(baseURL, registrationKey string) *PrimeClient {
 	}
 }
 
-// Register registers this daemon with Alfred Prime
+// Register registers this daemon with Ultron Prime
 func (c *PrimeClient) Register(ctx context.Context, req RegistrationRequest) (*RegistrationResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {

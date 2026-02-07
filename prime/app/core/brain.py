@@ -1,4 +1,4 @@
-"""Alfred's Brain - Claude-powered thinking and decision making.
+"""Ultron's Brain - Claude-powered thinking and decision making.
 
 This is the core intelligence. Every message goes through here.
 Claude decides what to do - respond, execute, or both.
@@ -53,7 +53,7 @@ CAPABILITIES:
 - Browse the web (simple fetch), search for information
 - Schedule tasks (recurring or one-time)
 - Docker, Git, services, processes
-- Receive files from user (auto-downloaded to /home/ec2-user/alfred/data/media/)
+- Receive files from user (auto-downloaded to /home/ec2-user/ultron/data/media/)
 - Send files back to user via Telegram (video, photo, audio, documents)
 - Browser automation on daemon machines: use browser_* tools for web browsing
 - Computer use on GUI machines: see the screen, click, type, control any app
@@ -1115,7 +1115,7 @@ async def web_search(query: str) -> dict:
             response = await client.get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": query},
-                headers={"User-Agent": "Alfred/1.0"},
+                headers={"User-Agent": "Ultron/1.0"},
             )
             
             # Parse results (basic extraction)
@@ -1162,7 +1162,7 @@ async def fetch_url(url: str, method: str = "GET", headers: dict = None, body: s
     
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            request_headers = {"User-Agent": "Alfred/1.0"}
+            request_headers = {"User-Agent": "Ultron/1.0"}
             if headers:
                 request_headers.update(headers)
             

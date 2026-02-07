@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alfred/daemon/internal/browser"
-	"github.com/alfred/daemon/internal/computer"
+	"github.com/ultron/daemon/internal/browser"
+	"github.com/ultron/daemon/internal/computer"
 )
 
 // RegisterBuiltins registers all built-in command handlers.

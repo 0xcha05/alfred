@@ -10,7 +10,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Where to store chat history files
-HISTORY_DIR = Path("/home/ec2-user/alfred/data/chat_history")
+HISTORY_DIR = Path("/home/ec2-user/ultron/data/chat_history")
 
 
 class ChatHistory:

@@ -113,7 +113,7 @@ async def telegram_webhook(
 
 
 async def process_message(chat_id: int, user_id: int, text: str, message_id: int):
-    """Process incoming message through Alfred's brain."""
+    """Process incoming message through Ultron's brain."""
     try:
         # Send typing indicator
         await telegram_service.send_typing_action(chat_id)

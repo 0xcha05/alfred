@@ -1,6 +1,6 @@
 """Scheduler service - triggers events on a schedule.
 
-This enables Alfred to be proactive:
+This enables Ultron to be proactive:
 - "Remind me in 1 hour"
 - "Check server health every 5 minutes"
 - "Send me news at 9am daily"
@@ -18,7 +18,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 # Storage location
-TASKS_FILE = Path("/home/ec2-user/alfred/data/scheduled_tasks.json")
+TASKS_FILE = Path("/home/ec2-user/ultron/data/scheduled_tasks.json")
 
 
 @dataclass

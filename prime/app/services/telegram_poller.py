@@ -15,7 +15,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Persist offset so restarts don't reprocess old messages
-OFFSET_FILE = Path("/home/ec2-user/alfred/data/telegram_offset.json")
+OFFSET_FILE = Path("/home/ec2-user/ultron/data/telegram_offset.json")
 
 
 class TelegramPoller:

@@ -82,7 +82,7 @@ async def get_daemon(daemon_id: str, request: Request):
         "hostname": conn.hostname,
         "capabilities": conn.capabilities,
         "is_soul_daemon": conn.is_soul_daemon,
-        "alfred_root": conn.alfred_root,
+        "ultron_root": conn.ultron_root,
         "connected_at": conn.connected_at.isoformat(),
         "last_seen": conn.last_seen.isoformat(),
         "status": conn.status,
@@ -127,7 +127,7 @@ async def get_soul_daemon(request: Request):
     return {
         "id": conn.daemon_id,
         "name": conn.name,
-        "alfred_root": conn.alfred_root,
+        "ultron_root": conn.ultron_root,
         "status": conn.status,
     }
 

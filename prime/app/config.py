@@ -1,4 +1,4 @@
-"""Alfred Prime - Configuration."""
+"""Ultron Prime - Configuration."""
 
 from typing import List, Union
 from pydantic import field_validator
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # Database
-    database_url: str = "postgresql+asyncpg://alfred:alfred@localhost:5432/alfred"
+    database_url: str = "postgresql+asyncpg://ultron:ultron@localhost:5432/ultron"
     
     # Redis
     redis_url: str = "redis://localhost:6379/0"

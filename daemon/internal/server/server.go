@@ -7,8 +7,8 @@
 package server
 
 import (
-	"github.com/alfred/daemon/internal/config"
-	"github.com/alfred/daemon/internal/executor"
+	"github.com/ultron/daemon/internal/config"
+	"github.com/ultron/daemon/internal/executor"
 )
 
 // Server is DEPRECATED - daemons now connect TO Prime instead of hosting a server.

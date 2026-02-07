@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick test to verify Alfred Prime setup."""
+"""Quick test to verify Ultron Prime setup."""
 
 import asyncio
 import sys
@@ -54,7 +54,7 @@ async def test_config():
 
 async def main():
     print("=" * 50)
-    print("Alfred Prime Setup Test")
+    print("Ultron Prime Setup Test")
     print("=" * 50)
     print()
     

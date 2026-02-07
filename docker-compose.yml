@@ -3,24 +3,24 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: alfred-postgres
+    container_name: ultron-postgres
     environment:
-      POSTGRES_USER: alfred
-      POSTGRES_PASSWORD: alfred
-      POSTGRES_DB: alfred
+      POSTGRES_USER: ultron
+      POSTGRES_PASSWORD: ultron
+      POSTGRES_DB: ultron
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alfred"]
+      test: ["CMD-SHELL", "pg_isready -U ultron"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: alfred-redis
+    container_name: ultron-redis
     ports:
       - "6379:6379"
     volumes:
@@ -36,12 +36,12 @@ services:
   #   build:
   #     context: ./prime
   #     dockerfile: Dockerfile
-  #   container_name: alfred-prime
+  #   container_name: ultron-prime
   #   ports:
   #     - "8000:8000"
   #     - "50051:50051"
   #   environment:
-  #     - DATABASE_URL=postgresql+asyncpg://alfred:alfred@postgres:5432/alfred
+  #     - DATABASE_URL=postgresql+asyncpg://ultron:ultron@postgres:5432/ultron
   #     - REDIS_URL=redis://redis:6379/0
   #   depends_on:
   #     postgres:

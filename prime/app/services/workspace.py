@@ -14,7 +14,7 @@ import json
 logger = logging.getLogger(__name__)
 
 # Base directory for workspaces
-WORKSPACE_BASE = Path("/home/ec2-user/alfred/data/workspaces")
+WORKSPACE_BASE = Path("/home/ec2-user/ultron/data/workspaces")
 WORKSPACE_BASE.mkdir(parents=True, exist_ok=True)
 
 

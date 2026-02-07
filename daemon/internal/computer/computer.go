@@ -132,7 +132,7 @@ func (m *Manager) findScript() string {
 		"scripts/computer.py",
 		"daemon/scripts/computer.py",
 		"../scripts/computer.py",
-		"/Users/doddagowtham/Desktop/dungeon/alfred/daemon/scripts/computer.py",
+		"/Users/doddagowtham/Desktop/dungeon/ultron/daemon/scripts/computer.py",
 	}
 
 	if exe, err := os.Executable(); err == nil {

@@ -1,11 +1,11 @@
 #!/bin/bash
-# Setup Playwright for Alfred browser automation
+# Setup Playwright for Ultron browser automation
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Setting up Playwright for Alfred daemon..."
+echo "Setting up Playwright for Ultron daemon..."
 
 # Check if Python3 is installed
 if ! command -v python3 &> /dev/null; then

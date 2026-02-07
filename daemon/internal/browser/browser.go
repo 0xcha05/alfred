@@ -135,7 +135,7 @@ func (m *Manager) findScript() string {
 		"scripts/browser.py",
 		"daemon/scripts/browser.py",
 		"../scripts/browser.py",
-		"/Users/doddagowtham/Desktop/dungeon/alfred/daemon/scripts/browser.py",
+		"/Users/doddagowtham/Desktop/dungeon/ultron/daemon/scripts/browser.py",
 	}
 
 	// Also try relative to executable

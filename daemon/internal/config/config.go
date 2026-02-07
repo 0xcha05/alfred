@@ -53,7 +53,7 @@ type Config struct {
 
 	// Soul Daemon (daemon on Prime's server for self-modification)
 	IsSoulDaemon bool   // True if this daemon runs on Prime's server
-	AlfredRoot   string // Root directory of Alfred installation
+	UltronRoot   string // Root directory of Ultron installation
 
 	// Runtime
 	DaemonID string // Assigned by Prime after registration
@@ -84,7 +84,7 @@ func Load(configPath string) (*Config, error) {
 		TLSCertPath:     getEnv("DAEMON_TLS_CERT", ""),
 		TLSKeyPath:      getEnv("DAEMON_TLS_KEY", ""),
 		IsSoulDaemon:    getEnvBool("DAEMON_IS_SOUL", false),
-		AlfredRoot:      getEnv("ALFRED_ROOT", ""),
+		UltronRoot:      getEnv("ULTRON_ROOT", ""),
 	}
 
 	// Soul daemon gets additional capabilities

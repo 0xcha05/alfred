@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Computer Use action executor for Alfred daemon (macOS).
+Computer Use action executor for Ultron daemon (macOS).
 Based on Anthropic's official documentation and reference implementation.
 
 Uses Anthropic's recommended approach:
@@ -163,8 +163,8 @@ def take_screenshot():
     and display_height_px we declared in the tool definition. This way Claude's
     coordinates match exactly what it sees.
     """
-    tmp_path = "/tmp/alfred_screenshot.png"
-    resized_path = "/tmp/alfred_screenshot_resized.png"
+    tmp_path = "/tmp/ultron_screenshot.png"
+    resized_path = "/tmp/ultron_screenshot_resized.png"
 
     try:
         subprocess.run(

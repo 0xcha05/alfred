@@ -1,6 +1,6 @@
-"""Event system - the core of Alfred's event-driven architecture.
+"""Event system - the core of Ultron's event-driven architecture.
 
-Everything in Alfred flows through events:
+Everything in Ultron flows through events:
 - Triggers create events (Telegram message, schedule tick, webhook, etc.)
 - Brain processes events and decides what to do using tools
 - Brain's response is sent back through the appropriate channel
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Event:
-    """A thing that happened that Alfred should know about.
+    """A thing that happened that Ultron should know about.
     
     source and type are STRINGS - not enums. Any system can create events.
     Examples:

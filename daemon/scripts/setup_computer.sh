@@ -1,9 +1,9 @@
 #!/bin/bash
-# Setup Computer Use dependencies for Alfred daemon on macOS
+# Setup Computer Use dependencies for Ultron daemon on macOS
 
 set -e
 
-echo "Setting up Computer Use for Alfred daemon..."
+echo "Setting up Computer Use for Ultron daemon..."
 
 # Check macOS
 if [[ "$(uname)" != "Darwin" ]]; then

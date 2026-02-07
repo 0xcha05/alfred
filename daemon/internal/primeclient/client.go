@@ -1,4 +1,4 @@
-// Package primeclient provides a bidirectional TCP client for connecting to Alfred Prime.
+// Package primeclient provides a bidirectional TCP client for connecting to Ultron Prime.
 // The daemon connects TO Prime (not the other way around), enabling daemons behind NAT.
 package primeclient
 
@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alfred/daemon/internal/handlers"
+	"github.com/ultron/daemon/internal/handlers"
 )
 
-// Client manages the bidirectional connection to Alfred Prime.
+// Client manages the bidirectional connection to Ultron Prime.
 type Client struct {
 	// Configuration
 	primeAddress    string
@@ -28,7 +28,7 @@ type Client struct {
 	hostname        string
 	capabilities    []string
 	isSoulDaemon    bool
-	alfredRoot      string
+	ultronRoot      string
 
 	// Connection state
 	conn     net.Conn
@@ -48,7 +48,7 @@ type Config struct {
 	Hostname        string
 	Capabilities    []string
 	IsSoulDaemon    bool
-	AlfredRoot      string
+	UltronRoot      string
 }
 
 // Core message types (protocol level)
@@ -86,7 +86,7 @@ func NewClient(cfg Config) *Client {
 		hostname:        hostname,
 		capabilities:    cfg.Capabilities,
 		isSoulDaemon:    cfg.IsSoulDaemon,
-		alfredRoot:      cfg.AlfredRoot,
+		ultronRoot:      cfg.UltronRoot,
 		reconnectDelay:  1 * time.Second,
 		maxReconnect:    60 * time.Second,
 	}
@@ -169,7 +169,7 @@ func (c *Client) sendRegistration() error {
 		"hostname":         c.hostname,
 		"capabilities":     c.capabilities,
 		"is_soul_daemon":   c.isSoulDaemon,
-		"alfred_root":      c.alfredRoot,
+		"ultron_root":      c.ultronRoot,
 	}
 
 	if err := c.sendMessage(msg); err != nil {

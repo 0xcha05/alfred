@@ -11,23 +11,23 @@ import (
 	"time"
 )
 
-// SelfModification handles operations where Alfred modifies itself
+// SelfModification handles operations where Ultron modifies itself
 type SelfModification struct {
 	executor    *Executor
-	alfredRoot  string // Root directory of Alfred installation
+	ultronRoot  string // Root directory of Ultron installation
 	primeRoot   string // Root directory of Prime
 	daemonRoot  string // Root directory of Daemon
 	backupDir   string // Directory for backups before modifications
 }
 
 // NewSelfModification creates a new self-modification handler
-func NewSelfModification(alfredRoot string) *SelfModification {
+func NewSelfModification(ultronRoot string) *SelfModification {
 	return &SelfModification{
 		executor:   New(),
-		alfredRoot: alfredRoot,
-		primeRoot:  filepath.Join(alfredRoot, "prime"),
-		daemonRoot: filepath.Join(alfredRoot, "daemon"),
-		backupDir:  filepath.Join(alfredRoot, ".backups"),
+		ultronRoot: ultronRoot,
+		primeRoot:  filepath.Join(ultronRoot, "prime"),
+		daemonRoot: filepath.Join(ultronRoot, "daemon"),
+		backupDir:  filepath.Join(ultronRoot, ".backups"),
 	}
 }
 
@@ -165,14 +165,14 @@ func (s *SelfModification) RestartPrime(ctx context.Context) (*ShellResult, erro
 
 	// Try systemd first
 	if _, err := exec.LookPath("systemctl"); err == nil {
-		result, err := s.executor.ExecuteShell(ctx, "sudo systemctl restart alfred-prime", "", nil, nil)
+		result, err := s.executor.ExecuteShell(ctx, "sudo systemctl restart ultron-prime", "", nil, nil)
 		if err == nil && result.ExitCode == 0 {
 			return result, nil
 		}
 	}
 
 	// Try docker
-	result, err := s.executor.ExecuteShell(ctx, "docker restart alfred-prime", "", nil, nil)
+	result, err := s.executor.ExecuteShell(ctx, "docker restart ultron-prime", "", nil, nil)
 	if err == nil && result.ExitCode == 0 {
 		return result, nil
 	}
@@ -227,31 +227,31 @@ func (s *SelfModification) UpdateDaemonDependencies(ctx context.Context) (*Shell
 
 // GitPull pulls latest changes from git
 func (s *SelfModification) GitPull(ctx context.Context) (*ShellResult, error) {
-	return s.executor.ExecuteShell(ctx, "git pull", s.alfredRoot, nil, nil)
+	return s.executor.ExecuteShell(ctx, "git pull", s.ultronRoot, nil, nil)
 }
 
 // GitCommit commits changes
 func (s *SelfModification) GitCommit(ctx context.Context, message string) (*ShellResult, error) {
 	cmd := fmt.Sprintf("git add -A && git commit -m %q", message)
-	return s.executor.ExecuteShell(ctx, cmd, s.alfredRoot, nil, nil)
+	return s.executor.ExecuteShell(ctx, cmd, s.ultronRoot, nil, nil)
 }
 
 // GitPush pushes changes
 func (s *SelfModification) GitPush(ctx context.Context) (*ShellResult, error) {
-	return s.executor.ExecuteShell(ctx, "git push", s.alfredRoot, nil, nil)
+	return s.executor.ExecuteShell(ctx, "git push", s.ultronRoot, nil, nil)
 }
 
-// GetAlfredVersion returns current Alfred version info
-func (s *SelfModification) GetAlfredVersion(ctx context.Context) (map[string]string, error) {
+// GetUltronVersion returns current Ultron version info
+func (s *SelfModification) GetUltronVersion(ctx context.Context) (map[string]string, error) {
 	info := make(map[string]string)
 
 	// Get git info
-	gitHash, _ := s.executor.ExecuteShell(ctx, "git rev-parse HEAD", s.alfredRoot, nil, nil)
+	gitHash, _ := s.executor.ExecuteShell(ctx, "git rev-parse HEAD", s.ultronRoot, nil, nil)
 	if gitHash != nil {
 		info["git_commit"] = strings.TrimSpace(gitHash.Stdout)
 	}
 
-	gitBranch, _ := s.executor.ExecuteShell(ctx, "git branch --show-current", s.alfredRoot, nil, nil)
+	gitBranch, _ := s.executor.ExecuteShell(ctx, "git branch --show-current", s.ultronRoot, nil, nil)
 	if gitBranch != nil {
 		info["git_branch"] = strings.TrimSpace(gitBranch.Stdout)
 	}

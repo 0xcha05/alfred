@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # Run with: python3 browser.py (or via venv after running setup_browser.sh)
 """
-Playwright browser automation wrapper for Alfred daemon.
+Playwright browser automation wrapper for Ultron daemon.
 Communicates via JSON over stdin/stdout.
 
 Commands:

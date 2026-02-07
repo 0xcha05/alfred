@@ -1,4 +1,4 @@
-# Alfred Prime
+# Ultron Prime
 
 A persistent AI agent that lives across all your machines, accessible through any channel, capable of acting on your behalf.
 
@@ -6,12 +6,12 @@ A persistent AI agent that lives across all your machines, accessible through an
 
 ## Features
 
-- **FULL CONTROL**: Alfred can do anything - shell, files, services, docker, git, even modify himself
+- **FULL CONTROL**: Ultron can do anything - shell, files, services, docker, git, even modify himself
 - **Multi-machine orchestration**: Control all your machines from one interface
-- **Self-improvement**: Alfred can modify his own code and restart himself
+- **Self-improvement**: Ultron can modify his own code and restart himself
 - **Intent-based commands**: Say "run the tests" instead of remembering exact commands
 - **Parallel execution**: Tasks run simultaneously across machines
-- **Learned patterns**: Alfred remembers "the usual" and your preferences
+- **Learned patterns**: Ultron remembers "the usual" and your preferences
 - **Soul Daemon**: A special daemon on Prime's server for self-modification
 - **Full audit trail**: Every action logged for review
 
@@ -21,7 +21,7 @@ Daemons connect TO Prime using bidirectional TCP streams. This means daemons beh
 
 ```
                     ┌─────────────────────────────────────┐
-                    │           ALFRED PRIME (EC2)        │
+                    │           ULTRON PRIME (EC2)        │
                     │                                     │
                     │  HTTP :8000  - Telegram webhooks    │
                     │  TCP  :50051 - Daemon connections   │
@@ -62,7 +62,7 @@ Daemons connect TO Prime using bidirectional TCP streams. This means daemons beh
 
 ```bash
 git clone <repository>
-cd alfred
+cd ultron
 
 # Copy environment file
 cp .env.example prime/.env
@@ -98,7 +98,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### 5. Start Daemon
 
-On any machine you want Alfred to control:
+On any machine you want Ultron to control:
 
 ```bash
 cd daemon
@@ -129,7 +129,7 @@ curl -X POST "http://localhost:8000/setup-webhook?webhook_url=https://your-ngrok
 ### 7. Start Chatting
 
 Message your bot on Telegram:
-- "help" - See what Alfred can do
+- "help" - See what Ultron can do
 - "run ls -la" - Execute commands
 - "what's running?" - Check status
 - "machines" - List connected daemons
@@ -140,16 +140,16 @@ Message your bot on Telegram:
 
 ```
 You: run the tests
-Alfred: Running tests...
+Ultron: Running tests...
         ✓ 147 tests passed
 
 You: check disk space
-Alfred: $ df -h
+Ultron: $ df -h
         Filesystem      Size  Used  Avail
         /dev/sda1       500G  120G  380G
 
 You: what's using port 3000
-Alfred: $ lsof -i :3000
+Ultron: $ lsof -i :3000
         node    12345  user   23u  IPv4  TCP *:3000 (LISTEN)
 ```
 
@@ -157,14 +157,14 @@ Alfred: $ lsof -i :3000
 
 ```
 You: on the server, restart nginx
-Alfred: Restarting nginx on server...
+Ultron: Restarting nginx on server...
         ✓ nginx restarted
 
 You: deploy to staging
-Alfred: ⚠️ Confirm: deploy.sh staging?
+Ultron: ⚠️ Confirm: deploy.sh staging?
         [Yes] [No]
 You: [Yes]
-Alfred: Deploying to staging...
+Ultron: Deploying to staging...
         ✓ Deployed successfully
 ```
 
@@ -172,7 +172,7 @@ Alfred: Deploying to staging...
 
 ```
 You: the usual
-Alfred: Order: Green curry + Pad Thai from Thai Garden, ₹850
+Ultron: Order: Green curry + Pad Thai from Thai Garden, ₹850
         [Confirm] [Cancel]
 ```
 
@@ -180,22 +180,22 @@ Alfred: Order: Green curry + Pad Thai from Thai Garden, ₹850
 
 ```bash
 # Direct commands
-./cli/alfred.py "run the tests"
-./cli/alfred.py machines
-./cli/alfred.py status
+./cli/ultron.py "run the tests"
+./cli/ultron.py machines
+./cli/ultron.py status
 
 # Interactive mode
-./cli/alfred.py -i
-alfred> ls -la
-alfred> machines
-alfred> exit
+./cli/ultron.py -i
+ultron> ls -la
+ultron> machines
+ultron> exit
 ```
 
 ## Project Structure
 
 ```
-alfred/
-├── prime/                      # Alfred Prime (Python/FastAPI)
+ultron/
+├── prime/                      # Ultron Prime (Python/FastAPI)
 │   ├── app/
 │   │   ├── main.py             # FastAPI entrypoint
 │   │   ├── config.py           # Configuration
@@ -226,7 +226,7 @@ alfred/
 ├── proto/                      # Protobuf definitions
 │   └── daemon.proto
 ├── cli/                        # CLI interface
-│   └── alfred.py
+│   └── ultron.py
 ├── scripts/                    # Utility scripts
 ├── docker-compose.yml          # Infrastructure
 └── README.md
@@ -265,7 +265,7 @@ Dangerous actions require confirmation:
 
 ## Full Control - Daemon Capabilities
 
-Alfred has **FULL CONTROL** over every machine. No restrictions.
+Ultron has **FULL CONTROL** over every machine. No restrictions.
 
 | Capability | Description |
 |------------|-------------|
@@ -283,7 +283,7 @@ Alfred has **FULL CONTROL** over every machine. No restrictions.
 
 ## Soul Daemon (Self-Modification)
 
-The **Soul Daemon** is a special daemon that runs on the same server as Prime. It allows Alfred to:
+The **Soul Daemon** is a special daemon that runs on the same server as Prime. It allows Ultron to:
 
 - **Modify his own code**: Edit Prime or Daemon source files
 - **Create new features**: Add new capabilities dynamically
@@ -298,27 +298,27 @@ On the **same machine as Prime**, run a daemon with the soul flag:
 ```bash
 cd daemon
 DAEMON_IS_SOUL=true \
-ALFRED_ROOT=/path/to/alfred \
+ULTRON_ROOT=/path/to/ultron \
 DAEMON_NAME=soul \
 PRIME_ADDRESS=localhost:50051 \
 DAEMON_REGISTRATION_KEY=your_secret \
 go run cmd/daemon/main.go
 ```
 
-The soul daemon connects to Prime locally and can modify Alfred's own code.
+The soul daemon connects to Prime locally and can modify Ultron's own code.
 
 ### Self-Improvement Commands
 
 ```
 You: "update your dependencies"
-Alfred: ⚠️ Confirm: Update Prime and Daemon dependencies?
+Ultron: ⚠️ Confirm: Update Prime and Daemon dependencies?
 You: Yes
-Alfred: Updating... Done.
+Ultron: Updating... Done.
 
 You: "add a feature to handle voice commands"
-Alfred: ⚠️ Confirm: Modify Prime code to add voice handling?
+Ultron: ⚠️ Confirm: Modify Prime code to add voice handling?
 You: Yes
-Alfred: Creating app/services/voice.py... Done.
+Ultron: Creating app/services/voice.py... Done.
         Please rebuild and restart Prime.
 ```
 
@@ -365,7 +365,7 @@ python scripts/test_setup.py
 
 ### NAT-Friendly Design
 
-Most machines (laptops, home servers) are behind NAT. Alfred uses a "daemon connects to Prime" model:
+Most machines (laptops, home servers) are behind NAT. Ultron uses a "daemon connects to Prime" model:
 
 1. **Prime runs on a public server** (EC2, DigitalOcean, etc.) with ports 8000 (HTTP) and 50051 (TCP) open
 2. **Daemons connect outbound** to Prime - this always works, even behind strict NAT
@@ -413,7 +413,7 @@ MacBook (behind NAT)              EC2 (public IP)
 | `PRIME_ADDRESS` | Prime's TCP address (e.g., "ec2-ip:50051") | Yes |
 | `DAEMON_REGISTRATION_KEY` | Same key as Prime | Yes |
 | `DAEMON_IS_SOUL` | Set to "true" for soul daemon | No |
-| `ALFRED_ROOT` | Path to Alfred source (soul daemon only) | No |
+| `ULTRON_ROOT` | Path to Ultron source (soul daemon only) | No |
 
 ## Roadmap
 

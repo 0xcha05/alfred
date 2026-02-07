@@ -1,4 +1,4 @@
-"""Alfred Prime - Main FastAPI Application."""
+"""Ultron Prime - Main FastAPI Application."""
 
 import asyncio
 import logging
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
-    logger.info("🎩 Alfred Prime starting...")
+    logger.info("🎩 Ultron Prime starting...")
     logger.info(f"   Environment: {settings.environment}")
     logger.info(f"   HTTP port: {settings.port}")
     logger.info(f"   Daemon port: {settings.daemon_port}")
@@ -73,12 +73,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("   Telegram: WEBHOOK mode (requires HTTPS)")
     
-    logger.info("🎩 Alfred Prime is ready!")
+    logger.info("🎩 Ultron Prime is ready!")
     
     yield
     
     # Shutdown
-    logger.info("🎩 Alfred Prime shutting down...")
+    logger.info("🎩 Ultron Prime shutting down...")
     
     # Stop scheduler
     if hasattr(app.state, 'scheduler'):
@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Alfred Prime",
+    title="Ultron Prime",
     description="A persistent AI agent across your infrastructure",
     version="0.1.0",
     lifespan=lifespan,
@@ -124,7 +124,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "alfred-prime",
+        "service": "ultron-prime",
         "version": "0.1.0",
     }
 
@@ -133,7 +133,7 @@ async def health_check():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Alfred Prime is ready to serve.",
+        "message": "Ultron Prime is ready to serve.",
         "docs": "/docs",
     }
 
